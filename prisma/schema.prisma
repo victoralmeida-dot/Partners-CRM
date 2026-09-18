@@ -1,0 +1,257 @@
+// Banco local SQLite — o arquivo .db fica na sua máquina, nunca sai dela.
+//
+// Nota: o SQLite não suporta o tipo "enum" nativo do Prisma, por isso os
+// campos que representam opções fixas (tier, status, etc.) são String.
+// A validação dessas opções é feita nos formulários do frontend e nas
+// API routes — os valores possíveis estão comentados ao lado de cada campo.
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Partner {
+  id               String   @id @default(cuid())
+  nome             String
+  slug             String?  @unique // usado na URL (/partners/[slug]) em vez do id cru — gerado a partir do nome
+  tier             String   @default("BRONZE") // GOLD | SILVER | BRONZE
+  status           String   @default("EM_ATIVACAO") // ATIVO | EM_ATIVACAO | PAUSADO
+  categoria        String?
+  prioritario      Boolean  @default(false)
+  mantenedor       Boolean  @default(false) // tag independente do status (ex: também é mantenedor)
+  cotaEventosContratados Int? // quantos eventos o contrato prevê (ex: Olist = 18)
+
+  // ICP (Perfil de Cliente Ideal) — usado pra cruzar com a carteira de clientes
+  // e sugerir indicações mais assertivas (definido na reunião com o Diógenes, 13/07/2026).
+  icpFaturamentoMin  Float?
+  icpFaturamentoMax  Float?
+  icpPedidosMin      Int?   // volume mínimo de pedidos/mês — critério recorrente em vários ICPs (WMS, ERP), separado do faturamento porque nem sempre andam juntos
+  icpSegmento        String? // ex: "Marca própria", "Importação"
+  icpCaracteristicas String? // texto livre: outras características do cliente ideal
+  contatoPrincipal String?
+  contatoEmail     String?
+  contatoSecund    String?
+  observacoes      String?
+  clickupCardId    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  indicacoes Indicacao[]
+  acoes      Acao[]
+  eventos    ParticipacaoEvento[]
+  receitas   Receita[]
+  metas      MetaParceiro[]
+  onboarding OnboardingItem[]
+}
+
+model Indicacao {
+  id            String    @id @default(cuid())
+  partnerId     String
+  partner       Partner   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  data          DateTime  @default(now())
+  origem        String    // EP_PARA_PARCEIRO | PARCEIRO_PARA_EP
+  leadNome      String
+  telefone      String?
+  email         String?
+  cnpj          String?
+  faturamento   Float?
+  quemIndicou   String?   // consultor/mentor responsável pela indicação
+  status        String    @default("ENVIADA") // LEAD_POTENCIAL | ENVIADA | NEGOCIACAO | EM_ESPERA | CONVERTIDA | PERDIDA
+  revisitarEm   DateTime? // usado quando status = EM_ESPERA ou LEAD_POTENCIAL — data prevista pra retomar o contato
+  valorEstimado Float?
+  observacoes   String?   // contexto da necessidade — dor/situação que motivou a indicação
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  comissao Comissao?
+  notas    NotaIndicacao[]
+}
+
+model NotaIndicacao {
+  id          String    @id @default(cuid())
+  indicacaoId String
+  indicacao   Indicacao @relation(fields: [indicacaoId], references: [id], onDelete: Cascade)
+  texto       String
+  createdAt   DateTime  @default(now())
+}
+
+model Comissao {
+  id              String    @id @default(cuid())
+  indicacaoId     String    @unique
+  indicacao       Indicacao @relation(fields: [indicacaoId], references: [id], onDelete: Cascade)
+  valor           Float
+  tipo            String    @default("PERCENTUAL") // PERCENTUAL | FIXO
+  statusPagamento String    @default("PENDENTE") // PENDENTE | PAGO
+  dataPagamento   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Acao {
+  id            String   @id @default(cuid())
+  partnerId     String
+  partner       Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  tipo          String   @default("FOLLOW_UP") // REUNIAO | EVENTO | ATIVACAO | FOLLOW_UP | OUTRO
+  titulo        String
+  dataPlanejada DateTime
+  status        String   @default("PLANEJADA") // PLANEJADA | CONCLUIDA | CANCELADA
+  responsavel   String?
+  descricao     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model EventoSerie {
+  id        String   @id @default(cuid())
+  nome      String   @unique // ex: "Imersão IA", "Importação Pura" — o tema recorrente
+  descricao String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  eventos Evento[]
+}
+
+model Evento {
+  id            String   @id @default(cuid())
+  nome          String
+  data          DateTime
+  local         String?
+  descricao     String?
+  serieId       String?
+  serie         EventoSerie? @relation(fields: [serieId], references: [id], onDelete: SetNull)
+  edicao        Int?     // número da edição dentro da série (ex: 3) — null se ainda não faz parte de uma série
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  participacoes ParticipacaoEvento[]
+}
+
+model ParticipacaoEvento {
+  id                  String    @id @default(cuid())
+  partnerId           String
+  partner             Partner   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  eventoId            String
+  evento              Evento    @relation(fields: [eventoId], references: [id], onDelete: Restrict)
+  status              String    @default("PLANEJADO") // PLANEJADO | REALIZADO | CANCELADO — status da participação DESSE parceiro, não do evento em si
+  participacaoPalco   Boolean   @default(false)
+  quemParticipou      String?   // ex: "Daniel Bueno"
+  participacaoPlateia Boolean   @default(false)
+  conteudoPalestra    String?
+  mailingEnviado      Boolean   @default(false)
+  mailingData         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  convidados ConvidadoEvento[]
+}
+
+model ConvidadoEvento {
+  id                   String             @id @default(cuid())
+  participacaoEventoId String
+  participacaoEvento   ParticipacaoEvento @relation(fields: [participacaoEventoId], references: [id], onDelete: Cascade)
+  nome                 String
+  telefone             String?
+  cpf                  String?
+  email                String?
+  empresa              String?
+  faturamento          Float?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+}
+
+model Meta {
+  id        String   @id @default(cuid())
+  periodo   String   @unique // "2026-07" (mensal) | "2026-Q3" (trimestral) | "2026" (anual)
+  tipo      String   // MENSAL | TRIMESTRAL | ANUAL
+  valorMeta Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Receita {
+  id          String   @id @default(cuid())
+  partnerId   String?
+  partner     Partner? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  origem      String   // INDICACAO | CONTRATO | COMISSAO | NOVO_CONTRATO | EVENTO | OUTRO
+  valor       Float
+  data        DateTime // data em que a receita conta para a meta do período
+  descricao   String?
+  numeroNota  String?  // nº da NF/documento fiscal correspondente
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model User {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  senhaHash        String
+  nome             String
+  role             String    @default("ANALISTA") // ADMIN | ANALISTA | PARCEIRO
+  partnerId        String?   // só preenchido quando role = PARCEIRO — escopo do acesso
+  ativo            Boolean   @default(true)
+  setupToken       String?   @unique // link de "defina sua senha" — de uso único
+  setupTokenExpira DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model Consultor {
+  id        String   @id @default(cuid())
+  nome      String   @unique
+  email     String?
+  telefone  String?
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MetaParceiro {
+  id        String   @id @default(cuid())
+  partnerId String
+  partner   Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  tipo      String   // LEADS_QUALIFICADOS | REUNIOES_COMERCIAIS (REUNIOES_COMERCIAIS legado, não criável mais)
+  periodo   String   // "2026-07" (mês em que foi definida — se fixa=true, é só informativo)
+  fixa      Boolean  @default(false) // meta contratual: mesmo valor todo mês, sem precisar recriar
+  valorMeta Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([partnerId, tipo, periodo])
+}
+
+model Tier {
+  id        String   @id @default(cuid())
+  nome      String   @unique // ex: "Gold", "Silver", "Bronze", ou um novo nível criado por você
+  descricao String?  // o que esse nível significa: entregas/expectativas esperadas
+  ordem     Int      @default(0) // ordem de exibição (maior = mais alto)
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  userNome    String   // guardado direto (não como relação) pra sobreviver mesmo se o usuário for removido depois
+  acao        String   // CRIAR | ATUALIZAR | REMOVER
+  entidade    String   // Partner | Indicacao | Comissao | User | MetaParceiro | Receita | Meta | Evento
+  entidadeId  String?
+  detalhe     String?  // descrição curta e legível do que mudou
+  createdAt   DateTime @default(now())
+}
+
+model OnboardingItem {
+  id          String    @id @default(cuid())
+  partnerId   String
+  partner     Partner   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  item        String
+  ordem       Int       @default(0)
+  concluido   Boolean   @default(false)
+  concluidoEm DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}

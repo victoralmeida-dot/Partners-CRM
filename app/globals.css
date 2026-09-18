@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tema escuro (padrão) */
+:root {
+  --c-ink: 244 245 247;
+  --c-paper: 11 11 14;
+  --c-surface: 23 23 28;
+  --c-accent: 59 130 246;
+  --c-amber: 215 163 46;
+  --c-rose: 229 72 77;
+  --c-line: 42 42 49;
+
+  --c-success: 52 211 153;
+  --c-danger: 229 72 77;
+  --c-meta-ref: 130 136 148;
+
+  --input-bg: 28 28 34;
+  --input-border: 42 42 49;
+  --placeholder: 117 117 126;
+}
+
+/* Tema claro */
+[data-theme="light"] {
+  --c-ink: 23 23 28;
+  --c-paper: 255 255 255;
+  --c-surface: 247 247 245;
+  --c-accent: 37 99 235;
+  --c-amber: 180 115 26;
+  --c-rose: 190 40 45;
+  --c-line: 228 226 220;
+
+  --c-success: 5 150 105;
+  --c-danger: 190 40 45;
+  --c-meta-ref: 107 114 128;
+
+  --input-bg: 255 255 255;
+  --input-border: 228 226 220;
+  --placeholder: 156 155 150;
+}
+
+html,
+body {
+  background-color: rgb(var(--c-paper));
+  color: rgb(var(--c-ink));
+}
+
+* {
+  scrollbar-width: thin;
+}
+
+input,
+select,
+textarea {
+  background-color: rgb(var(--input-bg));
+  color: rgb(var(--c-ink));
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgb(var(--placeholder));
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--c-accent));
+  outline-offset: 2px;
+}
+
+/* Logo é branco (feito pra fundo escuro) — inverte no tema claro pra continuar visível */
+[data-theme="light"] .logo-ep {
+  filter: invert(1);
+}
