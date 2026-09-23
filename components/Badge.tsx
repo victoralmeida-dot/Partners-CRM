@@ -23,9 +23,13 @@ const styles: Record<string, string> = {
   CONCLUIDA: "bg-accent/10 text-accent border-accent/30",
   CANCELADA: "bg-rose/10 text-rose border-rose/30",
   // Evento status
+  CONVITE_ENVIADO: "bg-amber/10 text-amber border-amber/30",
   PLANEJADO: "bg-accent/10 text-accent border-accent/30",
   REALIZADO: "bg-[rgb(var(--c-success)/0.1)] text-[rgb(var(--c-success))] border-[rgb(var(--c-success)/0.3)]",
   CANCELADO: "bg-rose/10 text-rose border-rose/30",
+  // Convidado de evento (aprovação)
+  APROVADO: "bg-[rgb(var(--c-success)/0.1)] text-[rgb(var(--c-success))] border-[rgb(var(--c-success)/0.3)]",
+  REJEITADO: "bg-rose/10 text-rose border-rose/30",
   // Tipo de meta
   MENSAL: "bg-ink/5 text-ink/60 border-ink/15",
   TRIMESTRAL: "bg-accent/10 text-accent border-accent/30",
@@ -54,9 +58,12 @@ const labels: Record<string, string> = {
   PLANEJADA: "Planejada",
   CONCLUIDA: "Concluída",
   CANCELADA: "Cancelada",
+  CONVITE_ENVIADO: "Convite enviado",
   PLANEJADO: "Planejado",
   REALIZADO: "Realizado",
   CANCELADO: "Cancelado",
+  APROVADO: "Aprovado",
+  REJEITADO: "Rejeitado",
   FOLLOW_UP: "Follow-up",
   EP_PARA_PARCEIRO: "EP → Parceiro",
   PARCEIRO_PARA_EP: "Parceiro → EP",

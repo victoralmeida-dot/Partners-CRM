@@ -35,7 +35,7 @@ CRM interno de gestão de parcerias B2B para a **Ecommerce Puro** (empresa de ed
 | `Indicacao` | Indicação de cliente/mentorado pra um parceiro. Tem contato completo (telefone/email/CNPJ/faturamento), `quemIndicou` (nome do consultor), status de funil (ENVIADA/NEGOCIACAO/CONVERTIDA/PERDIDA) |
 | `Comissao` | 1:1 com Indicacao — valor, tipo (percentual/fixo), status de pagamento |
 | `Acao` | Cronograma/follow-ups por parceiro (reunião, evento, ativação, etc.) |
-| `ParticipacaoEvento` | Histórico de eventos que o parceiro participou (nome, data, palco/plateia, mailing) |
+| `ParticipacaoEvento` | Histórico de eventos que o parceiro participou (nome, data, palco/plateia, mailing). `status` inclui `CONVITE_ENVIADO` (convite pendente de aceite/recusa no Portal do Parceiro) além de PLANEJADO/REALIZADO/CANCELADO |
 | `Meta` | Meta financeira da empresa (mensal/trimestral/anual), usada no dashboard geral |
 | `Receita` | Lançamento de receita realizada (o "atingido" das metas), com origem (indicação/contrato/comissão/evento/outro) |
 | `MetaParceiro` | Meta específica por parceiro (Leads Qualificados, Reuniões Comerciais), sempre mensal, com progresso calculado automaticamente a partir de `Indicacao` e `Acao` — não é lançamento manual |
@@ -46,7 +46,7 @@ CRM interno de gestão de parcerias B2B para a **Ecommerce Puro** (empresa de ed
 | `Evento` | Cadastro do evento em si (nome, data, local) — 1:N com `ParticipacaoEvento` (vários parceiros podem participar do mesmo evento) |
 | `AuditLog` | Trilha de auditoria (quem fez o quê, quando) — ver `lib/auditoria.ts`. `userNome` é gravado como texto solto (não FK) pra sobreviver à remoção do usuário |
 | `OnboardingItem` | Checklist de onboarding por parceiro (item, ordem, concluído) — ver `lib/onboarding.ts` |
-| `ConvidadoEvento` | Convidado trazido por um parceiro numa `ParticipacaoEvento` (nome, empresa, telefone, CPF, e-mail, faturamento) — um parceiro pode trazer vários convidados pro mesmo evento |
+| `ConvidadoEvento` | Convidado trazido por um parceiro numa `ParticipacaoEvento` (nome, empresa, telefone, CPF, e-mail, faturamento) — um parceiro pode trazer vários convidados pro mesmo evento. `status` (PENDENTE\|APROVADO\|REJEITADO, + `motivoRejeicao`): convidado lançado direto pelo admin já nasce APROVADO; enviado pelo parceiro via Portal nasce PENDENTE e precisa de aprovação em `/eventos` |
 | `EventoSerie` | Tema recorrente de evento (ex: "Imersão IA", "Importação Pura"). `Evento` referencia `serieId` + `edicao` (Int) — eventos sem série são "avulsos" |
 
 Detalhes de cada model, relações e o histórico de por que cada um existe: [docs/modelo-dados.md](docs/modelo-dados.md). Decisões de arquitetura e o raciocínio por trás delas: [docs/decisoes.md](docs/decisoes.md). Regras de negócio (funil, comissão, tiers, metas, cota de eventos): [docs/regras-de-negocio.md](docs/regras-de-negocio.md).
@@ -66,11 +66,12 @@ Detalhes de cada model, relações e o histórico de por que cada um existe: [do
 - `/usuarios` — Gestão de usuários e papéis de acesso (só ADMIN)
 - `/auditoria` — Trilha de auditoria de ações do sistema (só ADMIN)
 - `/perfil` — Troca de senha do próprio usuário
+- `/portal` — Portal do Parceiro (role `PARCEIRO`): visão própria e restrita (indicações, comissões, eventos, meta do mês), sem sidebar interna — dados vêm de `/api/portal/meus-dados`, que deriva o `partnerId` só da sessão, nunca de parâmetro de URL
 - `/login`, `/definir-senha`, `/sem-acesso` — Telas fora do `AppShell` (sem sidebar)
 
 ## Autenticação e controle de acesso
 
-- `middleware.ts` protege todas as rotas exceto `/login`. Usuários com `role: PARCEIRO` são redirecionados pra `/partners/[seu-próprio-id]` em qualquer outra rota — **esse papel já está pronto no código, mas por decisão do usuário, só é usado internamente por enquanto** (não é liberado pra parceiros externos de verdade ainda; isso depende de decisão futura sobre hospedagem, já que hoje o app roda só localmente).
+- `middleware.ts` protege todas as rotas exceto `/login`. Usuários com `role: PARCEIRO` são redirecionados pra `/portal` (Portal do Parceiro) em qualquer outra rota — **esse papel já está pronto no código, mas por decisão do usuário, só é usado internamente por enquanto** (não é liberado pra parceiros externos de verdade ainda; isso depende de decisão futura sobre hospedagem, já que hoje o app roda só localmente).
 - Login inicial padrão: `victor@ecommercepuro.com.br` — a senha provisória fica no `prisma/seed.ts` (deve ser trocada em `/perfil` no primeiro acesso).
 
 ## Convenções de código já estabelecidas
@@ -81,7 +82,9 @@ Detalhes de cada model, relações e o histórico de por que cada um existe: [do
 - Importação em massa (partners e receitas) é via upload de CSV parseado no client (função `parseCSV` local em cada página, sem lib externa).
 - Cores de status/badges: ver `components/Badge.tsx`, que centraliza estilo por valor de string (ex: `"CONVERTIDA"`, `"ATIVO"`, `"GOLD"`). Ao adicionar um novo valor de status, adicione também o estilo correspondente ali.
 - Toda ação de criar/atualizar/remover nas API routes deve chamar `registrarAuditoria()` (`lib/auditoria.ts`) — é o que alimenta `/auditoria`. Nunca deixe uma falha de auditoria quebrar a operação principal (o helper já engole erro e só loga).
+- Formulário de criação (toggle "+ Novo X" / `showForm`) sempre renderiza **logo após o cabeçalho da página**, antes de qualquer bloco de filtro/estatística/gráfico — nunca depois. Abrir o botão deve mostrar o formulário sem precisar rolar a tela, não importa quantos painéis a página ganhe depois. (Corrigido em `/indicacoes` em 22/09/2026 — o form tinha ficado "preso" depois de Filtros + stats + rankings, que foram todos adicionados depois do form já existir.)
 - URL do parceiro usa `slug` (`lib/slug.ts`), gerado a partir do nome com sufixo numérico em caso de colisão — nunca troque isso por rota baseada em `id`.
+- **Campos de "data pura"** (sem hora real — vêm de `<input type="date">` e são guardados como meia-noite UTC: `Evento.data`, `Indicacao.data`, `Acao.dataPlanejada`, `Receita.data`) **sempre** precisam de `timeZone: "UTC"` no `Intl.DateTimeFormat` ao exibir, e comparação tipo "atrasado"/"já passou" sempre por string de calendário (`campo.slice(0,10) < hojeISO()`), nunca por instante exato (`new Date(a) < new Date(b)`). Sem isso, o fuso local (Brasil, UTC-3) faz o dia exibido/comparado voltar um dia. Não confundir com timestamps de verdade (`createdAt`, `concluidoEm`, `setupTokenExpira`) — esses têm hora real e devem ficar no fuso local, sem fixar UTC. Ver [docs/decisoes.md](docs/decisoes.md).
 
 ## Scripts úteis
 

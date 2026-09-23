@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Badge from "@/components/Badge";
+import { calcularProjecaoMensal } from "@/lib/metaParceiro";
 
 type Comissao = {
   id: string;
@@ -107,7 +108,21 @@ type Partner = {
   onboarding: OnboardingItem[];
 };
 
-const dateFmt = (d: string) => new Intl.DateTimeFormat("pt-BR").format(new Date(d));
+// timeZone: "UTC" — Acao.dataPlanejada, Indicacao.data e Evento.data são datas
+// "puras" (guardadas como meia-noite UTC); sem fixar o fuso, o fuso local
+// (Brasil, UTC-3) faz o dia exibido voltar um dia. Não usar esta função pra
+// timestamps reais (como OnboardingItem.concluidoEm) — esses usam dateHoraFmt.
+const dateFmt = (d: string) => new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(d));
+// Pra timestamps de verdade (têm hora real, ex: quando um item de onboarding
+// foi concluído) — formata no fuso local do navegador, sem fixar UTC.
+const dateHoraFmt = (d: string) => new Intl.DateTimeFormat("pt-BR").format(new Date(d));
+// Data de hoje no calendário local do usuário, como "YYYY-MM-DD" — comparar
+// datas "puras" contra isso em vez de um instante exato evita o mesmo
+// problema de fuso (ex: "data já passou" disparando ~3h adiantado).
+const hojeISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 const currency = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
@@ -1191,7 +1206,7 @@ function EventoRow({
       <td className="text-xs">
         <div className="flex flex-col gap-1">
           <Badge value={evento.status} />
-          {evento.status === "PLANEJADO" && new Date(evento.evento.data) < new Date() && (
+          {evento.status === "PLANEJADO" && evento.evento.data.slice(0, 10) < hojeISO() && (
             <span className="text-amber text-[11px]">⚠️ data já passou — atualizar status?</span>
           )}
         </div>
@@ -1671,6 +1686,9 @@ function MetasParceiroPainel({
         const realizado = atingido(m);
         const pct = Math.min(100, (realizado / m.valorMeta) * 100);
         const bateu = realizado >= m.valorMeta;
+        const ehMesAtual = periodoParaCalculo(m) === periodoAtual;
+        const projecao = ehMesAtual ? calcularProjecaoMensal(realizado, m.valorMeta) : null;
+
         return (
           <div key={m.id} className="text-sm">
             <div className="flex items-center justify-between mb-1">
@@ -1693,6 +1711,16 @@ function MetasParceiroPainel({
                 style={{ width: `${pct}%` }}
               />
             </div>
+            {projecao && !bateu && (
+              <p className={`text-xs mt-1 ${projecao.vaiBaterMeta ? "text-accent" : "text-rose"}`}>
+                {projecao.vaiBaterMeta ? "📈" : "📉"} No ritmo atual ({projecao.diaAtual}/{projecao.diasNoMes}{" "}
+                dias do mês), projeção é fechar com{" "}
+                <strong>{projecao.projecaoFimMes.toFixed(1)}</strong> — {" "}
+                {projecao.vaiBaterMeta
+                  ? "deve bater a meta"
+                  : `${projecao.pctProjecao.toFixed(0)}% da meta, não deve bater`}
+              </p>
+            )}
           </div>
         );
       })}
@@ -1804,7 +1832,7 @@ function OnboardingSection({ partner, onSaved }: { partner: Partner; onSaved: ()
               </label>
               <div className="flex items-center gap-2 shrink-0">
                 {item.concluido && item.concluidoEm && (
-                  <span className="text-xs text-ink/30">{dateFmt(item.concluidoEm)}</span>
+                  <span className="text-xs text-ink/30">{dateHoraFmt(item.concluidoEm)}</span>
                 )}
                 <button
                   onClick={() => remover(item.id)}

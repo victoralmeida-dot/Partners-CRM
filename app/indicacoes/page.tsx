@@ -129,7 +129,19 @@ export default function IndicacoesPage() {
   const [filtroDataInicio, setFiltroDataInicio] = useState(primeiroDiaMesAtual);
   const [filtroDataFim, setFiltroDataFim] = useState(ultimoDiaMesAtual);
 
-  const load = () => fetch("/api/indicacoes").then((r) => r.json()).then(setIndicacoes);
+  // Reaproveita o mesmo endpoint/fórmula de metas por parceiro já usado na Dashboard.
+  const loadMetas = () =>
+    fetch("/api/dashboard")
+      .then((r) => r.json())
+      .then((d) => setMetasParceiroMes(d.metasParceiroMes ?? []));
+
+  // `load` recarrega indicações E metas juntos — toda indicação nova/alterada
+  // pode mudar o "realizado" da meta do mês, então os dois têm que andar
+  // juntos (antes, metas só carregava 1x no mount e nunca mais atualizava).
+  const load = () => {
+    fetch("/api/indicacoes").then((r) => r.json()).then(setIndicacoes);
+    loadMetas();
+  };
   const loadNotas = () => fetch("/api/notas-indicacao").then((r) => r.json()).then(setNotas);
   const loadConsultores = () =>
     fetch("/api/consultores").then((r) => r.json()).then(setConsultores);
@@ -141,10 +153,6 @@ export default function IndicacoesPage() {
     fetch("/api/partners")
       .then((r) => r.json())
       .then((p) => setPartners(p.map((x: any) => ({ id: x.id, nome: x.nome }))));
-    // Reaproveita o mesmo endpoint/fórmula de metas por parceiro já usado na Dashboard.
-    fetch("/api/dashboard")
-      .then((r) => r.json())
-      .then((d) => setMetasParceiroMes(d.metasParceiroMes ?? []));
   }, []);
 
   const submit = async (e: FormEvent) => {
@@ -255,6 +263,101 @@ export default function IndicacoesPage() {
         </div>
       </div>
 
+      {showForm && (
+        <form onSubmit={submit} className="bg-surface border border-line rounded-lg p-5 space-y-4">
+          <div className="grid md:grid-cols-3 gap-4">
+            <Field label="Nome do mentorado">
+              <input
+                required
+                value={form.leadNome}
+                onChange={(e) => setForm({ ...form, leadNome: e.target.value })}
+                className="input"
+              />
+            </Field>
+            <Field label="Telefone">
+              <input
+                value={form.telefone}
+                onChange={(e) => setForm({ ...form, telefone: e.target.value })}
+                className="input"
+                placeholder="(11) 99999-9999"
+              />
+            </Field>
+            <Field label="E-mail">
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                className="input"
+              />
+            </Field>
+            <Field label="CNPJ">
+              <input
+                value={form.cnpj}
+                onChange={(e) => setForm({ ...form, cnpj: e.target.value })}
+                className="input"
+                placeholder="00.000.000/0000-00"
+              />
+            </Field>
+            <Field label="Faturamento (R$)">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={formatarFaturamentoInput(form.faturamento)}
+                onChange={(e) =>
+                  setForm({ ...form, faturamento: e.target.value.replace(/\D/g, "") })
+                }
+                className="input"
+                placeholder="0,00"
+              />
+            </Field>
+            <Field label="Parceiro indicado">
+              <select
+                required
+                value={form.partnerId}
+                onChange={(e) => setForm({ ...form, partnerId: e.target.value })}
+                className="input"
+              >
+                <option value="">Selecione...</option>
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nome}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Quem indicou">
+              <select
+                value={form.quemIndicou}
+                onChange={(e) => setForm({ ...form, quemIndicou: e.target.value })}
+                className="input"
+              >
+                <option value="">Selecione...</option>
+                {consultores.map((c) => (
+                  <option key={c.id} value={c.nome}>
+                    {c.nome}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <Field label="Contexto da necessidade (qual dor ou situação motivou a indicação)">
+            <textarea
+              value={form.observacoes}
+              onChange={(e) => setForm({ ...form, observacoes: e.target.value })}
+              className="input"
+              rows={2}
+              placeholder="Ex: cliente reclamou de erro de estoque em 3 pedidos seguidos, precisa de WMS"
+            />
+          </Field>
+          <button
+            disabled={saving}
+            className="bg-accent text-white text-sm px-4 py-2 rounded-md disabled:opacity-50"
+          >
+            {saving ? "Salvando..." : "Salvar indicação"}
+          </button>
+        </form>
+      )}
+
       {showConsultores && (
         <ConsultoresPanel
           consultores={consultores}
@@ -360,101 +463,6 @@ export default function IndicacoesPage() {
             <RankingChart items={rankingParceiros} color="rgb(var(--c-success))" />
           </div>
         </div>
-      )}
-
-      {showForm && (
-        <form onSubmit={submit} className="bg-surface border border-line rounded-lg p-5 space-y-4">
-          <div className="grid md:grid-cols-3 gap-4">
-            <Field label="Nome do mentorado">
-              <input
-                required
-                value={form.leadNome}
-                onChange={(e) => setForm({ ...form, leadNome: e.target.value })}
-                className="input"
-              />
-            </Field>
-            <Field label="Telefone">
-              <input
-                value={form.telefone}
-                onChange={(e) => setForm({ ...form, telefone: e.target.value })}
-                className="input"
-                placeholder="(11) 99999-9999"
-              />
-            </Field>
-            <Field label="E-mail">
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="input"
-              />
-            </Field>
-            <Field label="CNPJ">
-              <input
-                value={form.cnpj}
-                onChange={(e) => setForm({ ...form, cnpj: e.target.value })}
-                className="input"
-                placeholder="00.000.000/0000-00"
-              />
-            </Field>
-            <Field label="Faturamento (R$)">
-              <input
-                type="text"
-                inputMode="decimal"
-                value={formatarFaturamentoInput(form.faturamento)}
-                onChange={(e) =>
-                  setForm({ ...form, faturamento: e.target.value.replace(/\D/g, "") })
-                }
-                className="input"
-                placeholder="0,00"
-              />
-            </Field>
-            <Field label="Parceiro indicado">
-              <select
-                required
-                value={form.partnerId}
-                onChange={(e) => setForm({ ...form, partnerId: e.target.value })}
-                className="input"
-              >
-                <option value="">Selecione...</option>
-                {partners.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nome}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Quem indicou">
-              <select
-                value={form.quemIndicou}
-                onChange={(e) => setForm({ ...form, quemIndicou: e.target.value })}
-                className="input"
-              >
-                <option value="">Selecione...</option>
-                {consultores.map((c) => (
-                  <option key={c.id} value={c.nome}>
-                    {c.nome}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <Field label="Contexto da necessidade (qual dor ou situação motivou a indicação)">
-            <textarea
-              value={form.observacoes}
-              onChange={(e) => setForm({ ...form, observacoes: e.target.value })}
-              className="input"
-              rows={2}
-              placeholder="Ex: cliente reclamou de erro de estoque em 3 pedidos seguidos, precisa de WMS"
-            />
-          </Field>
-          <button
-            disabled={saving}
-            className="bg-accent text-white text-sm px-4 py-2 rounded-md disabled:opacity-50"
-          >
-            {saving ? "Salvando..." : "Salvar indicação"}
-          </button>
-        </form>
       )}
 
       <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -731,7 +739,7 @@ function IndicacaoCard({
   onSaved: () => void;
   onNotasSaved: () => void;
 }) {
-  const [expandido, setExpandido] = useState(false);
+  const [modalAberto, setModalAberto] = useState(false);
   const [editandoObs, setEditandoObs] = useState(false);
   const [obs, setObs] = useState(i.observacoes ?? "");
   const [editandoConsultor, setEditandoConsultor] = useState(false);
@@ -740,6 +748,27 @@ function IndicacaoCard({
   const [saving, setSaving] = useState(false);
   const [novaNota, setNovaNota] = useState("");
   const [savingNota, setSavingNota] = useState(false);
+  const [editandoDadosCliente, setEditandoDadosCliente] = useState(false);
+  const [savingCliente, setSavingCliente] = useState(false);
+  const [clienteForm, setClienteForm] = useState({
+    leadNome: i.leadNome,
+    telefone: i.telefone ?? "",
+    email: i.email ?? "",
+    cnpj: i.cnpj ?? "",
+    faturamento: i.faturamento != null ? Math.round(i.faturamento * 100).toString() : "",
+  });
+
+  const abrirModal = () => {
+    setClienteForm({
+      leadNome: i.leadNome,
+      telefone: i.telefone ?? "",
+      email: i.email ?? "",
+      cnpj: i.cnpj ?? "",
+      faturamento: i.faturamento != null ? Math.round(i.faturamento * 100).toString() : "",
+    });
+    setEditandoDadosCliente(false);
+    setModalAberto(true);
+  };
 
   const adicionarNota = async () => {
     if (!novaNota.trim()) return;
@@ -809,6 +838,24 @@ function IndicacaoCard({
     onSaved();
   };
 
+  const salvarCliente = async () => {
+    setSavingCliente(true);
+    await fetch(`/api/indicacoes/${i.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        leadNome: clienteForm.leadNome,
+        telefone: clienteForm.telefone || null,
+        email: clienteForm.email || null,
+        cnpj: clienteForm.cnpj || null,
+        faturamento: clienteForm.faturamento ? Number(clienteForm.faturamento) / 100 : null,
+      }),
+    });
+    setSavingCliente(false);
+    setEditandoDadosCliente(false);
+    onSaved();
+  };
+
   return (
     <div className="border border-line rounded-md p-3 text-sm bg-surface">
       <p className="font-medium text-ink">{i.leadNome}</p>
@@ -871,11 +918,8 @@ function IndicacaoCard({
       )}
 
       <div className="flex items-center gap-3 mt-1.5">
-        <button
-          onClick={() => setExpandido((v) => !v)}
-          className="text-xs text-accent hover:underline"
-        >
-          {expandido ? "Ver menos ▲" : "Ver mais ▼"}
+        <button onClick={abrirModal} className="text-xs text-accent hover:underline">
+          Ver mais ▼
         </button>
         {MOSTRAR_AVISAR_PARCEIRO && (
           i.partner.contatoEmail ? (
@@ -894,109 +938,6 @@ function IndicacaoCard({
         )}
       </div>
 
-      {expandido && (
-        <div className="mt-2 pt-2 border-t border-line space-y-1.5">
-          <p className="text-xs text-ink/60">
-            📞 {i.telefone || <span className="text-ink/30">não informado</span>}
-          </p>
-          <p className="text-xs text-ink/60">
-            ✉️ {i.email || <span className="text-ink/30">não informado</span>}
-          </p>
-          <p className="text-xs text-ink/60">
-            🏢 CNPJ: {i.cnpj || <span className="text-ink/30">não informado</span>}
-          </p>
-
-          <div className="pt-1">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-ink/50">Contexto da necessidade</span>
-              {!editandoObs && (
-                <button
-                  onClick={() => setEditandoObs(true)}
-                  className="text-xs text-accent hover:underline"
-                >
-                  editar
-                </button>
-              )}
-            </div>
-            {editandoObs ? (
-              <div className="mt-1 space-y-1.5">
-                <textarea
-                  value={obs}
-                  onChange={(e) => setObs(e.target.value)}
-                  className="input text-xs"
-                  rows={3}
-                />
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={salvarObs}
-                    disabled={saving}
-                    className="text-xs bg-accent text-white px-2 py-1 rounded-md disabled:opacity-50"
-                  >
-                    {saving ? "Salvando..." : "Salvar"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setObs(i.observacoes ?? "");
-                      setEditandoObs(false);
-                    }}
-                    className="text-xs text-ink/50 hover:underline"
-                  >
-                    cancelar
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <p className="text-xs text-ink/60 mt-1 italic">
-                {i.observacoes ? `"${i.observacoes}"` : "Nenhuma observação registrada ainda."}
-              </p>
-            )}
-          </div>
-
-          <div className="pt-2 border-t border-line">
-            <span className="text-xs text-ink/50">Notas / Follow-up</span>
-
-            {notas.length > 0 && (
-              <ul className="mt-1.5 space-y-1.5">
-                {notas.map((n) => (
-                  <li
-                    key={n.id}
-                    className="bg-paper border border-line rounded-md p-2 flex items-start justify-between gap-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-xs text-ink/70 break-words">{n.texto}</p>
-                      <p className="text-[10px] text-ink/35 mt-0.5">{dataHoraFmt(n.createdAt)}</p>
-                    </div>
-                    <button
-                      onClick={() => excluirNota(n.id)}
-                      className="text-[10px] text-rose hover:underline shrink-0"
-                    >
-                      remover
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <div className="mt-1.5 space-y-1.5">
-              <textarea
-                value={novaNota}
-                onChange={(e) => setNovaNota(e.target.value)}
-                className="input text-xs"
-                rows={2}
-                placeholder="Ex: Cliente convertido no plano X"
-              />
-              <button
-                onClick={adicionarNota}
-                disabled={savingNota || !novaNota.trim()}
-                className="text-xs bg-accent text-white px-2 py-1 rounded-md disabled:opacity-50"
-              >
-                {savingNota ? "Salvando..." : "Adicionar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <select
         value={i.status}
         onChange={(e) => moveStatus(e.target.value)}
@@ -1008,6 +949,221 @@ function IndicacaoCard({
           </option>
         ))}
       </select>
+
+      {modalAberto && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setModalAberto(false)}
+        >
+          <div
+            className="bg-surface border border-line rounded-lg p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-medium text-ink">{i.leadNome}</h3>
+                <p className="text-xs text-ink/50">{i.partner.nome}</p>
+              </div>
+              <button
+                onClick={() => setModalAberto(false)}
+                className="text-ink/40 hover:text-ink text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="border-t border-line pt-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-ink/50 font-medium">Dados do cliente</span>
+                {!editandoDadosCliente && (
+                  <button
+                    onClick={() => setEditandoDadosCliente(true)}
+                    className="text-xs text-accent hover:underline"
+                  >
+                    editar
+                  </button>
+                )}
+              </div>
+
+              {editandoDadosCliente ? (
+                <div className="mt-2 space-y-3">
+                  <Field label="Nome do cliente">
+                    <input
+                      value={clienteForm.leadNome}
+                      onChange={(e) => setClienteForm({ ...clienteForm, leadNome: e.target.value })}
+                      className="input"
+                    />
+                  </Field>
+                  <Field label="Telefone">
+                    <input
+                      value={clienteForm.telefone}
+                      onChange={(e) => setClienteForm({ ...clienteForm, telefone: e.target.value })}
+                      className="input"
+                      placeholder="(11) 99999-9999"
+                    />
+                  </Field>
+                  <Field label="E-mail">
+                    <input
+                      type="email"
+                      value={clienteForm.email}
+                      onChange={(e) => setClienteForm({ ...clienteForm, email: e.target.value })}
+                      className="input"
+                    />
+                  </Field>
+                  <Field label="CNPJ">
+                    <input
+                      value={clienteForm.cnpj}
+                      onChange={(e) => setClienteForm({ ...clienteForm, cnpj: e.target.value })}
+                      className="input"
+                      placeholder="00.000.000/0000-00"
+                    />
+                  </Field>
+                  <Field label="Faturamento (R$)">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={formatarFaturamentoInput(clienteForm.faturamento)}
+                      onChange={(e) =>
+                        setClienteForm({ ...clienteForm, faturamento: e.target.value.replace(/\D/g, "") })
+                      }
+                      className="input"
+                      placeholder="0,00"
+                    />
+                  </Field>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={salvarCliente}
+                      disabled={savingCliente || !clienteForm.leadNome.trim()}
+                      className="text-xs bg-accent text-white px-3 py-1.5 rounded-md disabled:opacity-50"
+                    >
+                      {savingCliente ? "Salvando..." : "Salvar"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setClienteForm({
+                          leadNome: i.leadNome,
+                          telefone: i.telefone ?? "",
+                          email: i.email ?? "",
+                          cnpj: i.cnpj ?? "",
+                          faturamento:
+                            i.faturamento != null ? Math.round(i.faturamento * 100).toString() : "",
+                        });
+                        setEditandoDadosCliente(false);
+                      }}
+                      className="text-xs text-ink/50 hover:underline"
+                    >
+                      cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-1.5 space-y-1 text-xs text-ink/60">
+                  <p>📞 {i.telefone || <span className="text-ink/30">não informado</span>}</p>
+                  <p>✉️ {i.email || <span className="text-ink/30">não informado</span>}</p>
+                  <p>🏢 CNPJ: {i.cnpj || <span className="text-ink/30">não informado</span>}</p>
+                  <p>
+                    💰 Faturamento:{" "}
+                    {i.faturamento != null ? (
+                      currency(i.faturamento)
+                    ) : (
+                      <span className="text-ink/30">não informado</span>
+                    )}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-line pt-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-ink/50 font-medium">Contexto da necessidade</span>
+                {!editandoObs && (
+                  <button
+                    onClick={() => setEditandoObs(true)}
+                    className="text-xs text-accent hover:underline"
+                  >
+                    editar
+                  </button>
+                )}
+              </div>
+              {editandoObs ? (
+                <div className="mt-1 space-y-1.5">
+                  <textarea
+                    value={obs}
+                    onChange={(e) => setObs(e.target.value)}
+                    className="input text-xs"
+                    rows={3}
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={salvarObs}
+                      disabled={saving}
+                      className="text-xs bg-accent text-white px-2 py-1 rounded-md disabled:opacity-50"
+                    >
+                      {saving ? "Salvando..." : "Salvar"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setObs(i.observacoes ?? "");
+                        setEditandoObs(false);
+                      }}
+                      className="text-xs text-ink/50 hover:underline"
+                    >
+                      cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-ink/60 mt-1 italic">
+                  {i.observacoes ? `"${i.observacoes}"` : "Nenhuma observação registrada ainda."}
+                </p>
+              )}
+            </div>
+
+            <div className="border-t border-line pt-3">
+              <span className="text-xs text-ink/50 font-medium">Notas / Follow-up</span>
+
+              {notas.length > 0 && (
+                <ul className="mt-2 space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {notas.map((n) => (
+                    <li
+                      key={n.id}
+                      className="bg-paper border border-line rounded-md p-2.5 flex items-start justify-between gap-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs text-ink/70 break-words">{n.texto}</p>
+                        <p className="text-[10px] text-ink/35 mt-0.5">{dataHoraFmt(n.createdAt)}</p>
+                      </div>
+                      <button
+                        onClick={() => excluirNota(n.id)}
+                        className="text-[10px] text-rose hover:underline shrink-0"
+                      >
+                        remover
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="mt-2 space-y-1.5">
+                <textarea
+                  value={novaNota}
+                  onChange={(e) => setNovaNota(e.target.value)}
+                  className="input text-xs"
+                  rows={3}
+                  placeholder="Ex: Cliente convertido no plano X"
+                />
+                <button
+                  onClick={adicionarNota}
+                  disabled={savingNota || !novaNota.trim()}
+                  className="text-xs bg-accent text-white px-2 py-1 rounded-md disabled:opacity-50"
+                >
+                  {savingNota ? "Salvando..." : "Adicionar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

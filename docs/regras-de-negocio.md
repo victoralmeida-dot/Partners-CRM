@@ -45,12 +45,15 @@ O comentário original no schema (`prisma/schema.prisma`) diz que o ICP seria "u
 - `REUNIOES_COMERCIAIS` (legado, não criável mais): conta `Acao` com `tipo="REUNIAO"` e `status="CONCLUIDA"` — só implementado na ficha do parceiro, não replicado no dashboard geral.
 - Meta `fixa: true` (contratual) sempre calcula contra o **mês atual**, não contra o mês em que foi criada.
 - Quando existe meta fixa e meta específica do mês pro mesmo parceiro+tipo, a específica do mês tem prioridade (no dashboard).
+- **Projeção de fechamento (`lib/metaParceiro.ts`, desde 22/09/2026):** com base no que já foi realizado até hoje e nos dias já decorridos no mês, projeta um "run-rate" simples (realizado ÷ dias decorridos × dias no mês) pra estimar se a meta será batida no ritmo atual. Só é exibida pra metas do mês corrente (não faz sentido projetar mês passado/futuro) e some assim que a meta já foi batida. Mesma fórmula usada na ficha do parceiro e no dashboard/indicações — ver decisoes.md.
 
 ## Eventos e cota contratada
 
-- `cotaEventosContratados` é comparado contra a contagem de `ParticipacaoEvento` com **status `REALIZADO`** apenas. *(Corrigido em 16/09/2026 — antes contava qualquer participação, inclusive `PLANEJADO` e `CANCELADO`, o que inflava indevidamente o "gasto" da cota.)*
+- `cotaEventosContratados` é comparado contra a contagem de `ParticipacaoEvento` com **status `REALIZADO`** apenas. *(Corrigido em 16/09/2026 — antes contava qualquer participação, inclusive `PLANEJADO` e `CANCELADO`, o que inflava indevidamente o "gasto" da cota.)* `CONVITE_ENVIADO` (desde 23/09/2026) também fica de fora dessa contagem, pelo mesmo motivo.
 - A cota é **só um indicador visual** (barra de progresso) — não existe nenhuma trava que impeça registrar uma nova participação além da cota contratada.
-- `ConvidadoEvento` (convidados trazidos pelo parceiro numa participação) não tem nenhuma regra de negócio associada além do cadastro — ver [modelo-dados.md](modelo-dados.md).
+- Uma `ParticipacaoEvento` pode ser criada de três lugares — pela ficha do parceiro (escolhendo o evento), pela tela `/eventos` com "+ Adicionar parceiro" (registro direto, já `PLANEJADO`/`REALIZADO`/`CANCELADO`, admin já sabe que aconteceu) ou "+ Atribuir evento (convite)" (cria como `CONVITE_ENVIADO`, aguardando o parceiro aceitar/recusar no Portal). Os três caminhos usam a mesma rota de API (`POST /api/participacoes-evento`), então o resultado é idêntico e sempre aparece nos mesmos lugares — não há sincronização especial, é a mesma tabela.
+- **Fluxo de convite (desde 23/09/2026):** `CONVITE_ENVIADO` → parceiro aceita (`PLANEJADO`) ou recusa (`CANCELADO`, sem status "recusado" separado) via `PUT /api/portal/eventos/[id]`. Só dá pra responder um convite que ainda está `CONVITE_ENVIADO` — tentar responder de novo depois de já aceito/recusado dá erro.
+- `ConvidadoEvento` (convidados trazidos pelo parceiro numa participação) tem `status` (`PENDENTE | APROVADO | REJEITADO`, desde 23/09/2026): um convidado lançado direto pelo admin (ficha do parceiro) já nasce `APROVADO`; um enviado pelo parceiro via Portal (`POST /api/portal/eventos/[id]/convidados`, só permitido quando a participação já está `PLANEJADO`) nasce `PENDENTE` e precisa ser aprovado ou rejeitado (com motivo obrigatório, salvo em `motivoRejeicao`) na tela `/eventos`. Fora isso, não tem regra de negócio associada — ver [modelo-dados.md](modelo-dados.md).
 
 ## Onboarding
 

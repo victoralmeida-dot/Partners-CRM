@@ -25,12 +25,13 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const role = (session?.user as any)?.role as string | undefined;
-  const partnerId = (session?.user as any)?.partnerId as string | undefined;
 
-  // Papel Parceiro só vê a própria ficha — nada de dashboard geral, metas, etc.
+  // Papel Parceiro usa o Portal do Parceiro (app/portal), que roda sem esta
+  // sidebar (ver AppShell) — este ramo só existe pra não quebrar caso a
+  // sidebar chegue a renderizar antes do redirect do middleware.
   const links =
     role === "PARCEIRO"
-      ? [{ href: `/partners/${partnerId}`, label: "Minha parceria" }]
+      ? [{ href: "/portal", label: "Meu portal" }]
       : role === "ADMIN"
       ? [...linksBase, { href: "/usuarios", label: "Usuários" }, { href: "/auditoria", label: "Auditoria" }]
       : linksBase;

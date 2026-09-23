@@ -5,6 +5,9 @@ type MetaParceiroMes = {
   valorMeta: number;
   realizado: number;
   pct: number;
+  projecaoFimMes: number;
+  pctProjecao: number;
+  vaiBaterMeta: boolean;
 };
 
 export default function MetasParceiroMesTable({ metas }: { metas: MetaParceiroMes[] }) {
@@ -24,7 +27,8 @@ export default function MetasParceiroMesTable({ metas }: { metas: MetaParceiroMe
           <th className="font-normal">Meta</th>
           <th className="font-normal">Realizado</th>
           <th className="font-normal">%</th>
-          <th className="font-normal w-1/3">Progresso</th>
+          <th className="font-normal w-1/4">Progresso</th>
+          <th className="font-normal">Projeção</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-line">
@@ -45,6 +49,18 @@ export default function MetasParceiroMesTable({ metas }: { metas: MetaParceiroMe
                     style={{ width: `${Math.min(100, m.pct)}%` }}
                   />
                 </div>
+              </td>
+              <td>
+                {bateu ? (
+                  <span className="text-xs text-ink/30">meta batida</span>
+                ) : (
+                  <span
+                    className={`text-xs font-medium ${m.vaiBaterMeta ? "text-accent" : "text-rose"}`}
+                    title={`No ritmo atual, projeção é fechar com ${m.projecaoFimMes.toFixed(1)} (${m.pctProjecao.toFixed(0)}% da meta)`}
+                  >
+                    {m.vaiBaterMeta ? "📈" : "📉"} {m.pctProjecao.toFixed(0)}%
+                  </span>
+                )}
               </td>
             </tr>
           );

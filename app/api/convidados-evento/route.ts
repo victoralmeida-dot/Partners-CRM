@@ -12,6 +12,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Lançado direto pelo admin (não veio do fluxo de convite do Portal do
+  // Parceiro) — já nasce APROVADO, sem precisar passar pela fila de aprovação
+  // (ver docs/decisoes.md sobre a extensão do ConvidadoEvento com status).
   const convidado = await prisma.convidadoEvento.create({
     data: {
       participacaoEventoId: body.participacaoEventoId,
@@ -21,6 +24,7 @@ export async function POST(req: NextRequest) {
       email: body.email || null,
       empresa: body.empresa || null,
       faturamento: body.faturamento ?? null,
+      status: "APROVADO",
     },
   });
 

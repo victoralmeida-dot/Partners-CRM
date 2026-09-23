@@ -40,7 +40,7 @@ export default function LoginPage() {
     >
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <img src="/logo-ep.png" alt="Ecommerce Puro" className="h-14 w-auto mx-auto mb-3" />
+          <img src="/logo-ep.png" alt="Ecommerce Puro" className="h-[300px] w-[300px] mx-auto mb-3" />
           <p className="font-semibold text-2xl mt-1">Partners CRM</p>
         </div>
 

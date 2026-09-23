@@ -47,8 +47,19 @@ type DashboardMetas = { ano: number; meses: MesDado[]; trimestres: MesDado[] };
 const currency = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
+// timeZone: "UTC" — Acao.dataPlanejada e Indicacao.data são datas "puras"
+// (guardadas como meia-noite UTC); sem fixar o fuso, o fuso local (Brasil,
+// UTC-3) faz o dia exibido voltar um dia.
 const dateFmt = (d: string) =>
-  new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(new Date(d));
+  new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", timeZone: "UTC" }).format(new Date(d));
+
+// Data de hoje no calendário local do usuário, como string "YYYY-MM-DD" — pra
+// comparar com datas "puras" (que só têm sentido como string de calendário,
+// não como instante exato) sem cair no mesmo problema de fuso horário.
+const hojeISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -143,7 +154,7 @@ export default function DashboardPage() {
           ) : (
             <ul className="space-y-2">
               {data.acoesProximas.map((a) => {
-                const atrasada = new Date(a.dataPlanejada) < new Date(new Date().setHours(0, 0, 0, 0));
+                const atrasada = a.dataPlanejada.slice(0, 10) < hojeISO();
                 return (
                   <li key={a.id} className="flex items-center justify-between text-sm">
                     <div>

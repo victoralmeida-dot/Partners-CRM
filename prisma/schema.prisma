@@ -124,6 +124,7 @@ model Evento {
   serieId       String?
   serie         EventoSerie? @relation(fields: [serieId], references: [id], onDelete: SetNull)
   edicao        Int?     // número da edição dentro da série (ex: 3) — null se ainda não faz parte de uma série
+  metaParceiros Int?     // quantos parceiros o ideal seria ter nesse evento — null usa a média padrão da tela (hoje 2)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -136,7 +137,7 @@ model ParticipacaoEvento {
   partner             Partner   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
   eventoId            String
   evento              Evento    @relation(fields: [eventoId], references: [id], onDelete: Restrict)
-  status              String    @default("PLANEJADO") // PLANEJADO | REALIZADO | CANCELADO — status da participação DESSE parceiro, não do evento em si
+  status              String    @default("PLANEJADO") // CONVITE_ENVIADO | PLANEJADO | REALIZADO | CANCELADO — status da participação DESSE parceiro, não do evento em si. CONVITE_ENVIADO é o estado inicial quando o admin convida o parceiro pro evento (aguarda aceite/recusa no Portal do Parceiro); se o parceiro recusar, vira CANCELADO — não existe um status "RECUSADO" separado
   participacaoPalco   Boolean   @default(false)
   quemParticipou      String?   // ex: "Daniel Bueno"
   participacaoPlateia Boolean   @default(false)
@@ -159,6 +160,8 @@ model ConvidadoEvento {
   email                String?
   empresa              String?
   faturamento          Float?
+  status               String             @default("PENDENTE") // PENDENTE | APROVADO | REJEITADO — aprovação do admin quando o convidado é enviado pelo parceiro via Portal (app/api/portal/eventos/[id]/convidados); um convidado lançado direto pelo admin (app/api/convidados-evento) já nasce APROVADO, sem precisar de aprovação
+  motivoRejeicao       String?            // só preenchido quando status = REJEITADO
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 }

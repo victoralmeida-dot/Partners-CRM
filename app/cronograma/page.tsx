@@ -13,19 +13,22 @@ type Acao = {
   partner: { id: string; nome: string };
 };
 
+// timeZone: "UTC" — Acao.dataPlanejada é data "pura" (meia-noite UTC); sem
+// fixar o fuso, o fuso local (Brasil, UTC-3) faz o dia exibido voltar um dia.
 const dateFmt = (d: string) =>
-  new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit", month: "long" }).format(
+  new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit", month: "long", timeZone: "UTC" }).format(
     new Date(d)
   );
 
+// Data de hoje no calendário local do usuário, como "YYYY-MM-DD" — comparar
+// contra isso em vez de um instante exato evita o mesmo problema de fuso.
 function hoje() {
   const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function isAtrasada(acao: Acao) {
-  return acao.status === "PLANEJADA" && new Date(acao.dataPlanejada) < hoje();
+  return acao.status === "PLANEJADA" && acao.dataPlanejada.slice(0, 10) < hoje();
 }
 
 export default function CronogramaPage() {

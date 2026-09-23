@@ -13,6 +13,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       descricao: body.descricao,
       serieId: body.serieId !== undefined ? body.serieId : undefined,
       edicao: body.edicao !== undefined ? body.edicao : undefined,
+      metaParceiros: body.metaParceiros !== undefined ? body.metaParceiros : undefined,
     },
   });
 

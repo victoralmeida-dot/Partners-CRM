@@ -6,12 +6,13 @@ export default withAuth(
     const token = req.nextauth.token;
     const { pathname } = req.nextUrl;
 
-    // Papel "Parceiro" só pode ver a própria ficha — qualquer outra rota
-    // do painel redireciona pra lá. Ajuste este bloco quando o acesso
-    // externo de parceiro for de fato liberado (ver conversa sobre hospedagem).
+    // Papel "Parceiro" só pode ver o próprio Portal do Parceiro — qualquer
+    // outra rota do painel redireciona pra lá. Ajuste este bloco quando o
+    // acesso externo de parceiro for de fato liberado (ver conversa sobre
+    // hospedagem) — hoje o Portal também só roda local, igual ao resto do app.
     if (token?.role === "PARCEIRO") {
       const partnerId = token.partnerId as string | null;
-      const rotaPermitida = partnerId ? `/partners/${partnerId}` : "/sem-acesso";
+      const rotaPermitida = partnerId ? "/portal" : "/sem-acesso";
       const podeAcessar =
         pathname === rotaPermitida || pathname.startsWith("/api/");
 
@@ -41,6 +42,11 @@ export default withAuth(
 );
 
 export const config = {
-  // Protege tudo, exceto login, definir-senha (link público de acesso) e assets estáticos do Next
-  matcher: ["/((?!login|definir-senha|api/definir-senha|_next/static|_next/image|favicon.ico).*)"],
+  // Protege tudo, exceto login, definir-senha (link público de acesso), assets estáticos
+  // do Next e arquivos estáticos da pasta public/ (logo, imagens, etc.) — sem essa última
+  // exclusão, um <img src="/logo-ep.png"> era redirecionado pro /login antes de carregar
+  // (inclusive na própria tela de login, que também precisa da imagem sem estar autenticado).
+  matcher: [
+    "/((?!login|definir-senha|api/definir-senha|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico)$).*)",
+  ],
 };

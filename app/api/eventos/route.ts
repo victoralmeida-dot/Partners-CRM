@@ -3,7 +3,10 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   const eventos = await prisma.evento.findMany({
-    include: { participacoes: { include: { partner: true } }, serie: true },
+    include: {
+      participacoes: { include: { partner: true, convidados: { orderBy: { createdAt: "asc" } } } },
+      serie: true,
+    },
     orderBy: { data: "desc" },
   });
   return NextResponse.json(eventos);
@@ -24,6 +27,7 @@ export async function POST(req: NextRequest) {
       descricao: body.descricao ?? null,
       serieId: body.serieId ?? null,
       edicao: body.edicao ?? null,
+      metaParceiros: body.metaParceiros ?? null,
     },
   });
 

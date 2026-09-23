@@ -6,6 +6,55 @@ Não é um changelog de features — é só o "porquê" por trás de escolhas qu
 
 ---
 
+## 2026-09-23 — Fluxo de convite de evento + aprovação de convidado (estende ConvidadoEvento, não cria um novo)
+
+**Contexto:** o pedido original era estender `Evento` com um fluxo de convite/aceite pro parceiro (status inicial antes de PLANEJADO/REALIZADO/CANCELADO) e um "novo model ConvidadoEvento" pra convidados com aprovação do admin. Ao investigar, dois achados mudaram o escopo:
+1. `ParticipacaoEvento.status` já existia (`String @default("PLANEJADO")`, PLANEJADO\|REALIZADO\|CANCELADO) — não precisou de migração, só adicionar `CONVITE_ENVIADO` como valor válido novo (é `String`, não enum real — ver "Padrão importante" no CLAUDE.md).
+2. `ConvidadoEvento` já existia desde 16/09/2026 (outro fluxo — admin registra manualmente quem o parceiro trouxe). Criar um segundo model com o mesmo nome não é possível nem faz sentido; a solução foi **estender o model existente** com `status` (`PENDENTE | APROVADO | REJEITADO`, default `PENDENTE`) e `motivoRejeicao`.
+
+**Decisão:**
+- `CONVITE_ENVIADO` é criado pelo admin via "+ Atribuir evento (convite)" (`app/eventos/page.tsx`, ação nova, separada do "+ Adicionar parceiro" já existente — os dois usam a mesma rota `POST /api/participacoes-evento`, só muda o `status` inicial). O parceiro aceita/recusa no Portal (`PUT /api/portal/eventos/[id]`, body `{ acao: "aceitar" | "recusar" }`) — aceitar vira `PLANEJADO`, recusar vira `CANCELADO` (sem status "recusado" separado, por pedido explícito).
+- Convidado enviado pelo parceiro via Portal (`POST /api/portal/eventos/[id]/convidados`, só aceito quando a participação já é `PLANEJADO`) nasce `PENDENTE`. Convidado lançado direto pelo admin (`POST /api/convidados-evento`, fluxo antigo) nasce **`APROVADO` automaticamente** — decisão explícita do usuário: lançamento direto do admin já é confiável, só o que vem de fora (parceiro) precisa de aprovação.
+- Os 3 `ConvidadoEvento` que já existiam antes dessa mudança foram migrados de `PENDENTE` (valor herdado do default no `db push`) pra `APROVADO`, já que são lançamentos antigos do admin, não convites pendentes de verdade.
+- Aprovação/rejeição (`PUT /api/convidados-evento/[id]`, campos `status`/`motivoRejeicao` agora opcionais) fica numa fila dentro da própria tela do evento em `/eventos` — reaproveita o local onde as participações do evento já são exibidas, em vez de criar uma view agregada separada.
+
+**Cuidado técnico:** o PUT de `/api/convidados-evento/[id]` é compartilhado entre o form de edição comum (manda todos os campos sempre) e a ação de aprovar/rejeitar (manda só `status`/`motivoRejeicao`) — por isso cada campo só entra no `update` quando vem preenchido no body (`campo !== undefined ? campo : undefined`), senão um approve/reject zeraria telefone/CPF/e-mail/empresa/faturamento do convidado (JS `undefined || null` vira `null`).
+
+**Testado:** criado um admin e um parceiro (Base) temporários — convite enviado, aceito no Portal, convidado de teste enviado, rejeitado pelo admin com motivo, motivo conferido no Portal. Auditoria confirmada em `/auditoria` pros 4 passos. Tudo (usuários, o convidado e a participação de teste) removido do banco depois.
+
+**Onde:** `prisma/schema.prisma` (`ParticipacaoEvento.status`, `ConvidadoEvento.status`/`motivoRejeicao`), `app/eventos/page.tsx` (`AtribuirConviteForm`, `ConvidadoPendenteRow`), `app/portal/page.tsx` (`EventoConviteCard`, `EventoConfirmadoCard`, `ConvidadoForm`), `app/api/portal/eventos/[id]/route.ts`, `app/api/portal/eventos/[id]/convidados/route.ts`, `app/api/convidados-evento/route.ts` e `[id]/route.ts`, `app/api/participacoes-evento/route.ts`, `components/Badge.tsx`.
+
+---
+
+## 2026-09-23 — Portal do Parceiro: tela própria, dados restritos, partnerId nunca por URL
+
+**Contexto:** o papel `PARCEIRO` já existia no `User`/middleware, mas só redirecionava pra `/partners/[id]` (a ficha interna completa, cheia de dado que só a EP deveria ver — ICP, observações internas, dados de outros parceiros linkáveis por navegação, etc.). Faltava uma tela própria, enxuta, só com o que interessa ao parceiro.
+
+**Decisão:** criar `/portal` como rota isolada (sem a sidebar interna — mesmo tratamento de `/login`/`/definir-senha` em `AppShell.tsx`), consumindo um endpoint próprio (`GET /api/portal/meus-dados`) que:
+- Deriva o `partnerId` **só da sessão** (`getServerSession`), nunca de parâmetro de URL — mesmo que o middleware já bloqueie outras rotas pro papel `PARCEIRO`, o endpoint reforça a checagem por conta própria (defesa em profundidade: uma rota de API nova nunca deve confiar só no middleware).
+- Retorna só os campos que fazem sentido pro parceiro ver: indicações (nome do lead, status, data — sem telefone/e-mail/CNPJ/faturamento/observações, que são dado de análise interna da EP), comissões (valor, tipo, status de pagamento), eventos (nome, data, status de participação, palco) e a meta do mês (mesma fórmula de projeção de `lib/metaParceiro.ts`, mesma regra de desempate meta fixa vs. meta do mês de `app/api/dashboard/route.ts`).
+- `middleware.ts` foi atualizado pra redirecionar `PARCEIRO` pra `/portal` em vez de `/partners/[id]`.
+
+**Por quê:** separar completamente a superfície de dado exposta ao parceiro da ficha interna evita que qualquer campo novo adicionado à ficha interna (`/partners/[slug]`) vaze pro parceiro por engano — a tela do portal só sabe dos campos que ela mesma busca, não herda nada da ficha interna.
+
+**Testado:** criado um usuário `PARCEIRO` temporário vinculado ao parceiro "Base", login completo, confirmado que `/partners` redireciona de volta pro `/portal`, e que `GET /api/portal/meus-dados` retorna só dado desse parceiro — depois removido do banco (não é dado real).
+
+**Onde:** `app/portal/page.tsx`, `app/api/portal/meus-dados/route.ts`, `middleware.ts`, `components/AppShell.tsx`, `components/Sidebar.tsx`.
+
+---
+
+## 2026-09-22 — Edição do cliente indicado via modal (primeiro modal do app)
+
+**Contexto:** o card de indicação (Kanban em `/indicacoes`) só permitia editar `quemIndicou`, `revisitarEm` e `observacoes` inline — `leadNome`, `telefone`, `email`, `cnpj` e `faturamento` só podiam ser definidos uma vez, na criação. A API (`PUT /api/indicacoes/[id]`) já aceitava todos esses campos; faltava só a UI.
+
+**Decisão:** adicionar um botão "✏️ Editar cliente" no card que abre um modal (overlay `fixed inset-0`) com os 5 campos num único formulário e um só Salvar/Cancelar — em vez de replicar o padrão de "editar" campo-a-campo já usado em `quemIndicou`/`observacoes`, ou de mover isso pra uma página/rota separada.
+
+**Por quê:** o usuário pediu explicitamente um "popup" pra editar os dados do cliente de uma vez só. Um formulário único evita ter que clicar "editar" 5 vezes pra corrigir nome+telefone+e-mail juntos (caso comum quando o dado veio errado da indicação original). Esse é o primeiro modal do app — se surgir necessidade parecida em outra tela, reaproveitar esse padrão (`fixed inset-0 bg-black/50` + card centralizado) em vez de inventar um novo.
+
+**Onde:** `IndicacaoCard` em `app/indicacoes/page.tsx` (estado `editandoCliente`/`clienteForm`, função `salvarCliente`).
+
+---
+
 ## 2026-09-16 — Convidados de evento viram tabela relacional, não campos soltos
 
 **Contexto:** ao marcar que um parceiro trouxe convidado(s) pra um evento (`participacaoPlateia`), era preciso registrar os dados de cada convidado (nome, telefone, e-mail, faturamento).
@@ -25,6 +74,45 @@ Não é um changelog de features — é só o "porquê" por trás de escolhas qu
 **Decisão:** adicionar `empresa` (pedido explícito) e `cpf` (implícito — veio junto nos dados reais fornecidos pelo usuário pra cadastrar os primeiros convidados).
 
 **Por quê:** rastrear de qual empresa o convidado veio importa pro contexto de negócio (ex: identificar que vários convidados vieram da mesma conta/cliente em potencial).
+
+---
+
+## 2026-09-22 — Metas de indicação não atualizavam após lançar nova indicação
+
+**Sintoma:** usuário lançava indicação nova em `/indicacoes`, a lista/Kanban atualizava, mas a tabela "Metas de indicação por parceiro (mês atual)" continuava com o percentual antigo.
+
+**Causa:** `app/indicacoes/page.tsx` buscava `/api/dashboard` (fonte dos dados de meta) **só uma vez**, no `useEffect` de montagem — nunca de novo. A função `load()` usada depois de criar/editar uma indicação só recarregava `/api/indicacoes`, sem tocar nas metas.
+
+**Correção:** `load()` agora recarrega indicações **e** metas juntos (`loadMetas()` embutido nela). Como só existe um lugar que chama isso após mutação (`onSaved={load}` no `IndicacaoCard`, mais o próprio `submit` do formulário), a correção cobre os dois casos sem precisar tocar em mais nada.
+
+**Por quê registrar:** é a mesma classe de bug do painel "Próximos eventos" de eventos, adaptada — dado "read-only" buscado uma vez só, sem invalidação depois de uma mutação relacionada. Vale checar esse padrão (fetch numa lista, mutação em outra tela/estado, sem recarregar a lista) sempre que uma tela nova combinar dado calculado com formulário de criação.
+
+---
+
+## 2026-09-22 — Painel "Próximos eventos" + meta de parceiros configurável por evento
+
+**Contexto:** o usuário sentia falta de uma visão rápida de quais eventos futuros ainda precisam de parceiros conectados, sem precisar abrir cada série. A referência inicial foi "em média, 2 parceiros por evento" — mas nem todo evento tem o mesmo porte.
+
+**Decisão:**
+- Painel no topo de `/eventos` lista só eventos com data futura (`data >= hoje`, ordenado por proximidade), com indicador visual (🔴/🟡/🟢) de quantos parceiros faltam pra bater a meta. Clicar num evento expande a série certa e rola a tela até ele.
+- `Evento.metaParceiros` (Int?, opcional) permite sobrescrever a meta padrão (constante `META_PARCEIROS_POR_EVENTO = 2` no código) por evento — eventos maiores podem pedir mais parceiros sem mudar o padrão global.
+
+**Critério de quando um evento some do painel — confirmado com o usuário:** só por **data** (a partir do dia seguinte), independente do `status`. Foi perguntado se deveria ser por status (só sumir quando "Realizado"/"Cancelado") em vez disso, e o usuário confirmou que por data já resolve — mesmo que um evento fique esquecido como "Planejado" depois de acontecer, ele soma do painel de qualquer forma. Não é bug, é o comportamento decidido.
+
+---
+
+## 2026-09-22 — Bug de fuso horário (D-1) em todas as datas "puras" exibidas
+
+**Contexto:** ao lançar uma edição nova de evento com data 06/04/2026, a tela mostrava 05/04/2026 — um dia antes do que foi digitado. O dado salvo no banco estava **correto** (`2026-04-06T00:00:00.000Z`); o bug era só na exibição.
+
+**Causa raiz:** campos de "data pura" (sem hora real — vêm de `<input type="date">` e são guardados como meia-noite UTC: `Evento.data`, `Indicacao.data`, `Acao.dataPlanejada`) estavam sendo formatados com `Intl.DateTimeFormat("pt-BR").format(new Date(d))` **sem fixar `timeZone: "UTC"`**. Sem isso, o navegador converte pro fuso local (Brasil, UTC-3) antes de formatar — meia-noite UTC vira 21h do dia anterior, e o dia exibido "volta" um dia. O mesmo problema afetava comparações tipo "já passou da data" / "atrasada", que comparavam `new Date(dataPlanejada) < new Date()` (instantes exatos) em vez de datas de calendário.
+
+**Correção:** 
+- Todo formatador de data pura (`dateFmt` em `eventos`, `page` (dashboard), `cronograma`, `partners/[slug]`) agora fixa `timeZone: "UTC"`.
+- Toda comparação "atrasada"/"já passou" pra datas puras agora compara **strings de calendário** (`campo.slice(0,10) < hojeISO()`), nunca instantes exatos — evita o mesmo problema E o inverso (marcar algo como atrasado horas antes da hora certa).
+- **Não confundir com timestamps de verdade** (`OnboardingItem.concluidoEm`, `AuditLog.createdAt`, `User.setupTokenExpira`, `NotaIndicacao.createdAt`) — esses têm hora real e devem continuar formatados no fuso local, sem fixar UTC. Por isso `partners/[slug]/page.tsx` agora tem duas funções (`dateFmt` pra data pura, `dateHoraFmt` pra timestamp real) em vez de uma só.
+
+**Por quê registrar:** `app/metas/page.tsx` já tinha esse fix aplicado (`timeZone: "UTC"`) antes de qualquer outra página — ou seja, esse bug já tinha sido corrigido uma vez e reintroduzido em código novo por não estar documentado. Qualquer novo formatador de data pura deve seguir esse padrão desde o início.
 
 ---
 
@@ -80,6 +168,15 @@ Estas já estavam em vigor quando esta sessão de documentação começou — de
 - **Soft-delete em cadastros com histórico (`Consultor`, `Tier`).** Indicações antigas continuam referenciando o nome; apagar de verdade quebraria o histórico.
 - **Sem gerenciador de estado global.** Cada página usa `useState` + `fetch` direto — decisão deliberada de manter o projeto simples pro tamanho e uso atual (um usuário principal).
 
+## 2026-09-22 — Projeção de meta virou função compartilhada (`lib/metaParceiro.ts`)
+
+**Contexto:** o usuário pediu um indicador de projeção ("no ritmo atual, vou bater a meta do mês ou não?") pra `MetaParceiro`. Essa métrica precisava aparecer tanto na ficha do parceiro quanto no dashboard/indicações — os dois lugares que já calculavam "realizado" de formas duplicadas (ver gap abaixo).
+
+**Decisão:** em vez de escrever a fórmula de projeção duas vezes (repetindo o problema já conhecido), criamos `lib/metaParceiro.ts` com uma função pura (`calcularProjecaoMensal`) importada pelos dois lugares. Não resolve a duplicação do cálculo de "realizado" em si (isso exigiria uma refatoração maior, fora do escopo do pedido), mas evita que a *nova* lógica de projeção vire uma terceira cópia divergente.
+
+**Fórmula:** run-rate simples — `realizado ÷ dias decorridos no mês × dias totais no mês` = projeção de fechamento. Considerado suficiente pro pedido; não pondera sazonalidade nem pesos por semana.
+
 ## Lacunas conhecidas (não são decisões — são pontos em aberto)
 
 - `DELETE /api/metas-parceiro/[id]` não chama `registrarAuditoria()` — diferente da maioria das outras rotas de delete. Detectado em 16/09/2026 depois de uma remoção acidental de uma meta real durante testes (sem log, precisou ser reconstruída manualmente a partir do que a tela mostrava). Vale alinhar com o padrão das outras rotas se for mexer nesse arquivo por outro motivo.
+- O cálculo de "realizado" de `MetaParceiro` (não a projeção, essa já foi unificada) ainda está duplicado entre `app/partners/[slug]/page.tsx` e `app/api/dashboard/route.ts`, com a mesma fórmula — só `REUNIOES_COMERCIAIS` não é replicado no segundo. Candidato a unificar numa próxima mexida nessa área.

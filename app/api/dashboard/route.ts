@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { calcularProjecaoMensal } from "@/lib/metaParceiro";
 
 export async function GET() {
   const [partners, indicacoes, acoesProximas] = await Promise.all([
@@ -67,6 +68,7 @@ export async function GET() {
       const realizado = indicacoes.filter(
         (i) => i.partnerId === m.partnerId && i.data.toISOString().slice(0, 7) === periodoAtual
       ).length;
+      const projecao = calcularProjecaoMensal(realizado, m.valorMeta);
       return {
         id: m.id,
         partnerId: m.partnerId,
@@ -74,6 +76,9 @@ export async function GET() {
         valorMeta: m.valorMeta,
         realizado,
         pct: (realizado / m.valorMeta) * 100,
+        projecaoFimMes: projecao.projecaoFimMes,
+        pctProjecao: projecao.pctProjecao,
+        vaiBaterMeta: projecao.vaiBaterMeta,
       };
     })
     .sort((a, b) => a.pct - b.pct);

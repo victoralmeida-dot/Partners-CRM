@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { registrarAuditoria } from "@/lib/auditoria";
 
 export async function GET() {
   const participacoes = await prisma.participacaoEvento.findMany({
@@ -31,8 +32,17 @@ export async function POST(req: NextRequest) {
       mailingEnviado: body.mailingEnviado ?? false,
       mailingData: body.mailingData ? new Date(body.mailingData) : null,
     },
-    include: { evento: true },
+    include: { evento: true, partner: true },
   });
+
+  await registrarAuditoria(
+    "CRIAR",
+    "ParticipacaoEvento",
+    participacao.id,
+    participacao.status === "CONVITE_ENVIADO"
+      ? `Convidou "${participacao.partner.nome}" pro evento "${participacao.evento.nome}"`
+      : `Adicionou "${participacao.partner.nome}" ao evento "${participacao.evento.nome}" (status ${participacao.status})`
+  );
 
   return NextResponse.json(participacao, { status: 201 });
 }
