@@ -42,7 +42,7 @@ CRM interno de gestão de parcerias B2B para a **Ecommerce Puro** (empresa de ed
 | `User` | Login do sistema. `role`: ADMIN \| ANALISTA \| PARCEIRO. Se PARCEIRO, `partnerId` restringe o acesso só àquele parceiro (ver `middleware.ts`) |
 | `Consultor` | Cadastro de consultores/mentores que podem "indicar" (nome, e-mail, telefone) — soft-delete via `ativo: false`, nunca hard-delete (indicações antigas continuam referenciando o nome) |
 | `Tier` | Cadastro gerenciável dos níveis de parceria (Gold/Silver/Bronze + customizáveis), com `descricao` do que cada nível significa em entregas/expectativas |
-| `NotaIndicacao` | Notas/comentários avulsos anexados a uma `Indicacao` (histórico de acompanhamento) |
+| `NotaIndicacao` | Notas/comentários anexados a uma `Indicacao` — canal compartilhado entre admin e parceiro (Portal). `autor` (ADMIN\|PARCEIRO) + `lida` (true quando o lado que não escreveu já viu) alimentam a sinalização de nova mensagem |
 | `Evento` | Cadastro do evento em si (nome, data, local) — 1:N com `ParticipacaoEvento` (vários parceiros podem participar do mesmo evento) |
 | `AuditLog` | Trilha de auditoria (quem fez o quê, quando) — ver `lib/auditoria.ts`. `userNome` é gravado como texto solto (não FK) pra sobreviver à remoção do usuário |
 | `OnboardingItem` | Checklist de onboarding por parceiro (item, ordem, concluído) — ver `lib/onboarding.ts` |

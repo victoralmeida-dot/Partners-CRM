@@ -40,7 +40,7 @@ Indicação de cliente/mentorado pra um parceiro (ou do parceiro pra EP — ver 
 
 ## NotaIndicacao
 
-Histórico de acompanhamento em texto livre, preso a uma `Indicacao`. Existe pra registrar follow-ups sem precisar sobrescrever o campo `observacoes` (que é único, não uma lista).
+Histórico de acompanhamento em texto livre, preso a uma `Indicacao`. Existe pra registrar follow-ups sem precisar sobrescrever o campo `observacoes` (que é único, não uma lista). Desde 23/09/2026, é também o canal de conversa **compartilhado** entre admin e parceiro (Portal): `autor` (`ADMIN | PARCEIRO`) e `lida` (true quando o lado que não escreveu já viu) — ver decisoes.md.
 
 ## Comissao
 

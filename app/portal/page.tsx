@@ -4,7 +4,19 @@ import { useEffect, useState, type FormEvent } from "react";
 import { signOut } from "next-auth/react";
 import Badge from "@/components/Badge";
 
-type Indicacao = { id: string; leadNome: string; status: string; data: string };
+type Indicacao = {
+  id: string;
+  leadNome: string;
+  status: string;
+  data: string;
+  notasNaoLidas: number;
+};
+type NotaIndicacao = {
+  id: string;
+  texto: string;
+  autor: string;
+  createdAt: string;
+};
 type Comissao = {
   id: string;
   leadNome: string;
@@ -62,11 +74,15 @@ const currency = (v: number) =>
 const dateFmt = (d: string) =>
   new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(d));
 
+const dataHoraFmt = (d: string) =>
+  new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(d));
+
 export default function PortalParceiroPage() {
   const [dados, setDados] = useState<MeusDados | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [showIndicacoes, setShowIndicacoes] = useState(false);
   const [filtroStatus, setFiltroStatus] = useState("");
+  const [detalheAberto, setDetalheAberto] = useState<Indicacao | null>(null);
 
   const load = () =>
     fetch("/api/portal/meus-dados")
@@ -197,6 +213,7 @@ export default function PortalParceiroPage() {
                         <th className="py-2 font-normal">Cliente</th>
                         <th className="font-normal">Status</th>
                         <th className="font-normal">Data</th>
+                        <th className="font-normal"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-line">
@@ -207,6 +224,14 @@ export default function PortalParceiroPage() {
                             <Badge value={i.status} />
                           </td>
                           <td className="text-ink/60">{dateFmt(i.data)}</td>
+                          <td className="text-right">
+                            <button
+                              onClick={() => setDetalheAberto(i)}
+                              className="text-xs text-accent hover:underline"
+                            >
+                              {i.notasNaoLidas > 0 ? "🔴 Detalhes" : "Detalhes"}
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -266,6 +291,127 @@ export default function PortalParceiroPage() {
 
         <p className="text-xs text-ink/30 text-center">Ambiente local · dados não expostos</p>
       </main>
+
+      {detalheAberto && (
+        <IndicacaoDetalheModal
+          indicacao={detalheAberto}
+          onClose={() => {
+            setDetalheAberto(null);
+            load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function IndicacaoDetalheModal({
+  indicacao,
+  onClose,
+}: {
+  indicacao: Indicacao;
+  onClose: () => void;
+}) {
+  const [notas, setNotas] = useState<NotaIndicacao[] | null>(null);
+  const [novaNota, setNovaNota] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/portal/indicacoes/${indicacao.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ acao: "marcar_notas_lidas" }),
+    })
+      .then((r) => r.json())
+      .then((d) => setNotas(d.notas));
+  }, [indicacao.id]);
+
+  const enviar = async () => {
+    if (!novaNota.trim()) return;
+    setSaving(true);
+    await fetch(`/api/portal/indicacoes/${indicacao.id}/notas`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto: novaNota.trim() }),
+    });
+    setNovaNota("");
+    setSaving(false);
+    fetch(`/api/portal/indicacoes/${indicacao.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ acao: "marcar_notas_lidas" }),
+    })
+      .then((r) => r.json())
+      .then((d) => setNotas(d.notas));
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface border border-line rounded-lg p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium text-ink">{indicacao.leadNome}</h3>
+            <p className="text-xs text-ink/50">{dateFmt(indicacao.data)}</p>
+          </div>
+          <button onClick={onClose} className="text-ink/40 hover:text-ink text-sm">
+            ✕
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-ink/50">Status:</span>
+          <Badge value={indicacao.status} />
+        </div>
+
+        <div className="border-t border-line pt-3">
+          <span className="text-xs text-ink/50 font-medium">Conversa sobre este cliente</span>
+
+          {notas === null ? (
+            <p className="text-xs text-ink/40 mt-2">Carregando...</p>
+          ) : notas.length === 0 ? (
+            <p className="text-xs text-ink/40 mt-2 italic">Nenhum comentário ainda.</p>
+          ) : (
+            <ul className="mt-2 space-y-2 max-h-64 overflow-y-auto pr-1">
+              {notas.map((n) => (
+                <li
+                  key={n.id}
+                  className={`border rounded-md p-2.5 ${
+                    n.autor === "PARCEIRO" ? "bg-accent/5 border-accent/20" : "bg-paper border-line"
+                  }`}
+                >
+                  <p className="text-xs text-ink/70 break-words">{n.texto}</p>
+                  <p className="text-[10px] text-ink/35 mt-0.5">
+                    {n.autor === "PARCEIRO" ? "Você" : "Ecommerce Puro"} · {dataHoraFmt(n.createdAt)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="mt-2 space-y-1.5">
+            <textarea
+              value={novaNota}
+              onChange={(e) => setNovaNota(e.target.value)}
+              className="input text-xs"
+              rows={3}
+              placeholder="Escreva um comentário sobre este cliente..."
+            />
+            <button
+              onClick={enviar}
+              disabled={saving || !novaNota.trim()}
+              className="text-xs bg-accent text-white px-3 py-1.5 rounded-md disabled:opacity-50"
+            >
+              {saving ? "Enviando..." : "Comentar"}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

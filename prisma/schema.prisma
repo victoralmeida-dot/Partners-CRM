@@ -76,6 +76,8 @@ model NotaIndicacao {
   indicacaoId String
   indicacao   Indicacao @relation(fields: [indicacaoId], references: [id], onDelete: Cascade)
   texto       String
+  autor       String    @default("ADMIN") // ADMIN | PARCEIRO — quem escreveu a nota
+  lida        Boolean   @default(false)    // true quando o OUTRO lado (quem não escreveu) já viu — alimenta a sinalização de nova mensagem
   createdAt   DateTime  @default(now())
 }
 

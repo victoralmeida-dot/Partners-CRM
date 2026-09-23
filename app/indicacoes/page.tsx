@@ -23,7 +23,14 @@ type Indicacao = {
 
 type Partner = { id: string; nome: string };
 type Consultor = { id: string; nome: string; email: string | null; telefone: string | null };
-type Nota = { id: string; indicacaoId: string; texto: string; createdAt: string };
+type Nota = {
+  id: string;
+  indicacaoId: string;
+  texto: string;
+  autor: string;
+  lida: boolean;
+  createdAt: string;
+};
 type MetaParceiroMes = {
   id: string;
   partnerId: string;
@@ -758,6 +765,8 @@ function IndicacaoCard({
     faturamento: i.faturamento != null ? Math.round(i.faturamento * 100).toString() : "",
   });
 
+  const notasNaoLidas = notas.filter((n) => n.autor === "PARCEIRO" && !n.lida).length;
+
   const abrirModal = () => {
     setClienteForm({
       leadNome: i.leadNome,
@@ -768,6 +777,13 @@ function IndicacaoCard({
     });
     setEditandoDadosCliente(false);
     setModalAberto(true);
+    if (notasNaoLidas > 0) {
+      fetch("/api/notas-indicacao/marcar-lidas", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ indicacaoId: i.id }),
+      }).then(onNotasSaved);
+    }
   };
 
   const adicionarNota = async () => {
@@ -921,6 +937,9 @@ function IndicacaoCard({
         <button onClick={abrirModal} className="text-xs text-accent hover:underline">
           Ver mais ▼
         </button>
+        {notasNaoLidas > 0 && (
+          <span className="text-xs text-rose font-medium">🔴 Nova mensagem do parceiro</span>
+        )}
         {MOSTRAR_AVISAR_PARCEIRO && (
           i.partner.contatoEmail ? (
             <a
@@ -1127,11 +1146,17 @@ function IndicacaoCard({
                   {notas.map((n) => (
                     <li
                       key={n.id}
-                      className="bg-paper border border-line rounded-md p-2.5 flex items-start justify-between gap-2"
+                      className={`border rounded-md p-2.5 flex items-start justify-between gap-2 ${
+                        n.autor === "PARCEIRO"
+                          ? "bg-accent/5 border-accent/20"
+                          : "bg-paper border-line"
+                      }`}
                     >
                       <div className="min-w-0">
                         <p className="text-xs text-ink/70 break-words">{n.texto}</p>
-                        <p className="text-[10px] text-ink/35 mt-0.5">{dataHoraFmt(n.createdAt)}</p>
+                        <p className="text-[10px] text-ink/35 mt-0.5">
+                          {n.autor === "PARCEIRO" ? "Parceiro" : "Você"} · {dataHoraFmt(n.createdAt)}
+                        </p>
                       </div>
                       <button
                         onClick={() => excluirNota(n.id)}

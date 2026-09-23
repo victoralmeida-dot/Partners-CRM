@@ -33,6 +33,7 @@ export async function GET() {
         status: true,
         data: true,
         comissao: { select: { valor: true, tipo: true, statusPagamento: true } },
+        _count: { select: { notas: { where: { autor: "ADMIN", lida: false } } } },
       },
       orderBy: { data: "desc" },
     }),
@@ -94,6 +95,7 @@ export async function GET() {
       leadNome: i.leadNome,
       status: i.status,
       data: i.data,
+      notasNaoLidas: i._count.notas,
     })),
     comissoes: indicacoes
       .filter((i) => i.comissao)

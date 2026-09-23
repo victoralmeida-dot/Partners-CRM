@@ -19,10 +19,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Nota criada pelo admin — "não lida" pelo parceiro até ele abrir o
+  // detalhe da indicação no Portal (ver PUT /api/portal/indicacoes/[id]).
   const nota = await prisma.notaIndicacao.create({
     data: {
       indicacaoId: body.indicacaoId,
       texto: body.texto.trim(),
+      autor: "ADMIN",
+      lida: false,
     },
   });
 

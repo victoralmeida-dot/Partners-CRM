@@ -6,6 +6,28 @@ Não é um changelog de features — é só o "porquê" por trás de escolhas qu
 
 ---
 
+## 2026-09-23 — Comentários bidirecionais em indicação (Portal ↔ admin) + sinalização de não lida
+
+**Contexto:** o parceiro pedia pra poder ver mais detalhe da própria indicação no Portal e documentar o andamento do cliente do lado dele, de forma que o admin visse isso na ficha interna. Também pediu algum aviso visual quando o outro lado comentasse algo novo.
+
+**Decisão:** reaproveitar a thread `NotaIndicacao` já existente (usada hoje só pelo admin em `/indicacoes`) como canal **compartilhado e bidirecional**, em vez de criar uma tabela nova:
+- `autor` (`ADMIN | PARCEIRO`, default `ADMIN`) identifica quem escreveu.
+- `lida` (`Boolean`, default `false`) significa "o **outro** lado já viu essa nota" — não é um campo de leitura por usuário individual, é suficiente porque só existem os dois papéis nessa conversa.
+- Marcar como lida acontece no momento em que o lado que **não escreveu** abre o detalhe da indicação (admin abre "Ver mais" em `/indicacoes`; parceiro abre "Detalhes" no Portal) — não existe um botão explícito de "marcar como lida".
+- Sinalização é só um texto/emoji (🔴 Nova mensagem do parceiro / 🔴 antes de "Detalhes"), seguindo o estilo já usado no app pra alertas (⚠️ Revisitar em atrasada) — sem componente de badge numérico novo.
+- Notas antigas (3, todas do admin) foram migradas pra `lida: true` no push, pra não gerar uma onda de notificação retroativa sobre histórico que ninguém "não viu de verdade".
+- O Portal **não** ganhou acesso a `telefone`/`email`/`cnpj`/`faturamento`/`observações` da indicação — só o essencial (nome, status, data) mais a conversa. Esse limite já tinha sido definido na primeira versão do Portal (ver entrada de 23/09/2026 mais abaixo) e continua valendo aqui.
+
+**Por quê:** uma tabela nova exigiria replicar toda a lógica de exibição/ordenação que a thread de notas já tem, e criaria dois lugares diferentes pra "conversa sobre o cliente" (uma pro admin, outra pro parceiro) que precisariam ficar sincronizados manualmente. Um único campo `lida` (em vez de `lidaPeloAdmin`/`lidaPeloParceiro`) é suficiente porque cada nota só tem um autor possível — a leitura pendente é sempre do lado oposto a quem escreveu.
+
+**Testado:** parceiro (Base) comentou numa indicação → badge apareceu no card do admin em `/indicacoes` → admin abriu e o badge sumiu → admin respondeu → badge de não lida apareceu no Portal → parceiro abriu e sumiu. Dados de teste (notas, usuários, audit log) removidos depois.
+
+**Onde:** `prisma/schema.prisma` (`NotaIndicacao.autor`/`lida`), `app/api/notas-indicacao/route.ts`, `app/api/notas-indicacao/marcar-lidas/route.ts` (novo), `app/api/portal/indicacoes/[id]/route.ts` (novo), `app/api/portal/indicacoes/[id]/notas/route.ts` (novo), `app/api/portal/meus-dados/route.ts` (`notasNaoLidas` por indicação), `app/indicacoes/page.tsx`, `app/portal/page.tsx` (`IndicacaoDetalheModal`).
+
+**Checkpoint de reversão:** commit `5e7ba0c` é o estado imediatamente anterior a essa feature — se a navegabilidade não for aprovada, dá pra reverter só essa parte com `git revert` (ou `git reset --hard 5e7ba0c` se for descartar tudo depois desse ponto) sem perder o Portal do Parceiro, o fluxo de convite de evento, nem a UX de indicações que já foram validados antes.
+
+---
+
 ## 2026-09-23 — Fluxo de convite de evento + aprovação de convidado (estende ConvidadoEvento, não cria um novo)
 
 **Contexto:** o pedido original era estender `Evento` com um fluxo de convite/aceite pro parceiro (status inicial antes de PLANEJADO/REALIZADO/CANCELADO) e um "novo model ConvidadoEvento" pra convidados com aprovação do admin. Ao investigar, dois achados mudaram o escopo:
