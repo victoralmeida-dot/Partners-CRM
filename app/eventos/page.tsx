@@ -518,6 +518,7 @@ function EventoCatalogoRow({
   const [editando, setEditando] = useState(false);
   const [showAdicionarParceiro, setShowAdicionarParceiro] = useState(false);
   const [showAtribuirConvite, setShowAtribuirConvite] = useState(false);
+  const [convidadosAbertos, setConvidadosAbertos] = useState<string | null>(null);
 
   const convidadosPendentes = evento.participacoes.flatMap((p) =>
     p.convidados
@@ -571,17 +572,35 @@ function EventoCatalogoRow({
             ) : (
               <div className="flex flex-wrap gap-2 mb-2">
                 {evento.participacoes.map((p) => (
-                  <Link
+                  <div
                     key={p.id}
-                    href={`/partners/${p.partner.slug ?? p.partner.id}`}
-                    className="flex items-center gap-1.5 text-xs bg-ink/5 text-ink/70 border border-ink/15 rounded-full pl-2.5 pr-1.5 py-1 hover:bg-ink/10"
+                    className="flex items-center gap-1.5 text-xs bg-ink/5 text-ink/70 border border-ink/15 rounded-full pl-2.5 pr-1.5 py-1"
                   >
-                    {p.partner.nome}
+                    <Link
+                      href={`/partners/${p.partner.slug ?? p.partner.id}`}
+                      className="hover:underline"
+                    >
+                      {p.partner.nome}
+                    </Link>
                     <Badge value={p.status} />
-                  </Link>
+                    <button
+                      onClick={() => setConvidadosAbertos((v) => (v === p.id ? null : p.id))}
+                      className="text-accent hover:underline"
+                    >
+                      convidados{p.convidados.length > 0 ? ` (${p.convidados.length})` : ""}
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
+
+            {convidadosAbertos &&
+              (() => {
+                const participacao = evento.participacoes.find((p) => p.id === convidadosAbertos);
+                return participacao ? (
+                  <ConvidadosParticipacao participacao={participacao} onSaved={onSaved} />
+                ) : null;
+              })()}
 
             {convidadosPendentes.length > 0 && (
               <div className="mb-3 bg-amber/5 border border-amber/20 rounded-md p-3">
@@ -920,6 +939,172 @@ function AtribuirConviteForm({
       <p className="text-xs text-ink/40 w-full">
         O parceiro vai ver o convite no Portal dele e precisa aceitar antes de poder enviar convidados.
       </p>
+    </form>
+  );
+}
+
+function ConvidadosParticipacao({
+  participacao,
+  onSaved,
+}: {
+  participacao: Participacao;
+  onSaved: () => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+
+  const removerConvidado = async (id: string) => {
+    await fetch(`/api/convidados-evento/${id}`, { method: "DELETE" });
+    onSaved();
+  };
+
+  return (
+    <div className="mb-3 bg-paper border border-line rounded-md p-3">
+      <span className="text-xs font-medium text-ink/70">
+        Convidados de {participacao.partner.nome}
+      </span>
+
+      {participacao.convidados.length === 0 ? (
+        <p className="text-xs text-ink/40 mt-2">Nenhum convidado registrado ainda.</p>
+      ) : (
+        <ul className="mt-2 space-y-1.5">
+          {participacao.convidados.map((c) => (
+            <li
+              key={c.id}
+              className="flex items-center justify-between gap-2 text-xs bg-surface border border-line rounded-md px-2.5 py-1.5"
+            >
+              <div className="min-w-0">
+                <span className="text-ink">{c.nome}</span>
+                {c.empresa && <span className="text-ink/40"> · {c.empresa}</span>}
+                {c.status === "REJEITADO" && c.motivoRejeicao && (
+                  <p className="text-[11px] text-rose mt-0.5">{c.motivoRejeicao}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Badge value={c.status} />
+                <button
+                  onClick={() => removerConvidado(c.id)}
+                  className="text-rose hover:underline"
+                >
+                  remover
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {showForm ? (
+        <ConvidadoQuickForm
+          participacaoEventoId={participacao.id}
+          onSaved={() => {
+            setShowForm(false);
+            onSaved();
+          }}
+          onCancel={() => setShowForm(false)}
+        />
+      ) : (
+        <button
+          onClick={() => setShowForm(true)}
+          className="text-xs text-accent hover:underline mt-2"
+        >
+          + Convidado
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ConvidadoQuickForm({
+  participacaoEventoId,
+  onSaved,
+  onCancel,
+}: {
+  participacaoEventoId: string;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [nome, setNome] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [email, setEmail] = useState("");
+  const [cpf, setCpf] = useState("");
+  const [empresa, setEmpresa] = useState("");
+  const [faturamento, setFaturamento] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!nome.trim()) return;
+    setSaving(true);
+    await fetch("/api/convidados-evento", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        participacaoEventoId,
+        nome: nome.trim(),
+        telefone: telefone || null,
+        email: email || null,
+        cpf: cpf || null,
+        empresa: empresa || null,
+        faturamento: faturamento.trim() ? Number(faturamento.trim().replace(",", ".")) || null : null,
+      }),
+    });
+    setSaving(false);
+    onSaved();
+  };
+
+  return (
+    <form onSubmit={submit} className="mt-2 space-y-2 bg-surface border border-line rounded-md p-3">
+      <input
+        required
+        placeholder="Nome do convidado"
+        value={nome}
+        onChange={(e) => setNome(e.target.value)}
+        className="input text-sm"
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          placeholder="Telefone"
+          value={telefone}
+          onChange={(e) => setTelefone(e.target.value)}
+          className="input text-sm"
+        />
+        <input
+          type="email"
+          placeholder="E-mail"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="input text-sm"
+        />
+        <input
+          placeholder="CPF"
+          value={cpf}
+          onChange={(e) => setCpf(e.target.value)}
+          className="input text-sm"
+        />
+        <input
+          placeholder="Empresa"
+          value={empresa}
+          onChange={(e) => setEmpresa(e.target.value)}
+          className="input text-sm"
+        />
+      </div>
+      <input
+        placeholder="Faturamento (R$)"
+        value={faturamento}
+        onChange={(e) => setFaturamento(e.target.value)}
+        className="input text-sm"
+      />
+      <div className="flex items-center gap-2">
+        <button
+          disabled={saving || !nome.trim()}
+          className="text-xs bg-accent text-white px-3 py-1.5 rounded-md disabled:opacity-50"
+        >
+          {saving ? "Salvando..." : "Salvar convidado"}
+        </button>
+        <button type="button" onClick={onCancel} className="text-xs text-ink/50 hover:underline">
+          cancelar
+        </button>
+      </div>
     </form>
   );
 }

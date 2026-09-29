@@ -18,6 +18,18 @@ Não é um changelog de features — é só o "porquê" por trás de escolhas qu
 
 ---
 
+## 2026-09-29 — Gerenciar convidados de um parceiro já adicionado, direto em `/eventos`
+
+**Contexto:** o item anterior cobria só o momento de adicionar o parceiro ao evento. Pra um parceiro **já** vinculado, o único jeito de ver/adicionar convidados era ir na ficha dele (`ConvidadosEvento` em `app/partners/[slug]/page.tsx`) — não existia atalho a partir da tela do evento, onde o admin já está olhando quem participou.
+
+**Decisão:** cada chip de parceiro no evento expandido ganhou um botão "convidados (N)" que abre um painel inline (`ConvidadosParticipacao`) listando os convidados dessa participação (com badge de status e motivo de rejeição, se houver) e um "+ Convidado" com os mesmos campos do resto do app. Continua sendo uma segunda via de acesso — a ficha do parceiro não foi alterada nem substituída.
+
+**Por quê:** o admin normalmente já está na tela do evento decidindo quem vai/vem, e forçar uma ida à ficha do parceiro só pra registrar quem ele trouxe era um passo a mais sem necessidade.
+
+**Onde:** `ConvidadosParticipacao` e `ConvidadoQuickForm` em `app/eventos/page.tsx`.
+
+---
+
 ## 2026-09-23 — Comentários bidirecionais em indicação (Portal ↔ admin) + sinalização de não lida
 
 **Contexto:** o parceiro pedia pra poder ver mais detalhe da própria indicação no Portal e documentar o andamento do cliente do lado dele, de forma que o admin visse isso na ficha interna. Também pediu algum aviso visual quando o outro lado comentasse algo novo.
