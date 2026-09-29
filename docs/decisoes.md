@@ -6,6 +6,18 @@ Não é um changelog de features — é só o "porquê" por trás de escolhas qu
 
 ---
 
+## 2026-09-29 — "Convidados na plateia" no "+ Adicionar parceiro" já abre o bloco de convidado
+
+**Contexto:** o admin só conseguia cadastrar convidados de plateia depois de criar a participação, indo na ficha do parceiro (`ConvidadosEvento` em `app/partners/[slug]/page.tsx`). Ao marcar "Convidados na plateia" direto no "+ Adicionar parceiro" (`app/eventos/page.tsx`), nada acontecia — só o boolean era salvo.
+
+**Decisão:** marcar o checkbox agora abre um bloco com os mesmos campos do form de convidado do Portal do Parceiro (nome, telefone, e-mail, CPF, empresa, faturamento), com "+ Outro convidado" pra registrar mais de um. Como a `ParticipacaoEvento` ainda não existe nesse momento, os convidados ficam em um estado local (rascunho) e só são enviados (`POST /api/convidados-evento`, um por um) depois que a participação é criada e o id real existe — nasce `APROVADO` automaticamente, mesma regra de qualquer lançamento direto do admin.
+
+**Por quê:** evita o passo extra de ir na ficha do parceiro logo em seguida só pra registrar quem veio na plateia — o admin já sabe os convidados no momento de atribuir o parceiro ao evento, na maioria dos casos.
+
+**Onde:** `AdicionarParceiroForm` em `app/eventos/page.tsx`.
+
+---
+
 ## 2026-09-23 — Comentários bidirecionais em indicação (Portal ↔ admin) + sinalização de não lida
 
 **Contexto:** o parceiro pedia pra poder ver mais detalhe da própria indicação no Portal e documentar o andamento do cliente do lado dele, de forma que o admin visse isso na ficha interna. Também pediu algum aviso visual quando o outro lado comentasse algo novo.

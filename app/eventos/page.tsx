@@ -40,6 +40,15 @@ type Evento = {
 
 type PartnerOpcao = { id: string; slug: string | null; nome: string };
 
+type ConvidadoDraft = {
+  nome: string;
+  telefone: string;
+  email: string;
+  cpf: string;
+  empresa: string;
+  faturamento: string;
+};
+
 // timeZone: "UTC" é essencial aqui — Evento.data é uma data "pura" (sem hora
 // real), guardada como meia-noite UTC. Sem fixar o fuso, o navegador formata
 // no fuso local (Brasil, UTC-3) e o dia exibido "volta" um dia (ex: evento
@@ -653,13 +662,33 @@ function AdicionarParceiroForm({
   const [quemParticipou, setQuemParticipou] = useState("");
   const [participacaoPlateia, setParticipacaoPlateia] = useState(false);
   const [mailingEnviado, setMailingEnviado] = useState(false);
+  const [convidados, setConvidados] = useState<ConvidadoDraft[]>([]);
   const [saving, setSaving] = useState(false);
+
+  const adicionarConvidadoDraft = () =>
+    setConvidados((cs) => [
+      ...cs,
+      { nome: "", telefone: "", email: "", cpf: "", empresa: "", faturamento: "" },
+    ]);
+
+  const toggleParticipacaoPlateia = (checked: boolean) => {
+    setParticipacaoPlateia(checked);
+    if (checked && convidados.length === 0) adicionarConvidadoDraft();
+    if (!checked) setConvidados([]);
+  };
+
+  const atualizarConvidado = (idx: number, campo: keyof ConvidadoDraft, valor: string) =>
+    setConvidados((cs) => cs.map((c, i) => (i === idx ? { ...c, [campo]: valor } : c)));
+
+  const removerConvidadoDraft = (idx: number) =>
+    setConvidados((cs) => cs.filter((_, i) => i !== idx));
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!partnerId) return;
     setSaving(true);
-    await fetch("/api/participacoes-evento", {
+
+    const res = await fetch("/api/participacoes-evento", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -672,6 +701,31 @@ function AdicionarParceiroForm({
         mailingEnviado,
       }),
     });
+    const participacao = await res.json();
+
+    // Convidados são criados junto — já nascem APROVADO (lançamento direto
+    // do admin), mesma regra do form de convidados na ficha do parceiro.
+    const convidadosValidos = convidados.filter((c) => c.nome.trim());
+    await Promise.all(
+      convidadosValidos.map((c) =>
+        fetch("/api/convidados-evento", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            participacaoEventoId: participacao.id,
+            nome: c.nome.trim(),
+            telefone: c.telefone || null,
+            email: c.email || null,
+            cpf: c.cpf || null,
+            empresa: c.empresa || null,
+            faturamento: c.faturamento.trim()
+              ? Number(c.faturamento.trim().replace(",", ".")) || null
+              : null,
+          }),
+        })
+      )
+    );
+
     setSaving(false);
     onSaved();
   };
@@ -717,7 +771,7 @@ function AdicionarParceiroForm({
         <input
           type="checkbox"
           checked={participacaoPlateia}
-          onChange={(e) => setParticipacaoPlateia(e.target.checked)}
+          onChange={(e) => toggleParticipacaoPlateia(e.target.checked)}
         />
         Convidados na plateia
       </label>
@@ -729,6 +783,73 @@ function AdicionarParceiroForm({
         />
         Mailing enviado
       </label>
+
+      {participacaoPlateia && (
+        <div className="sm:col-span-2 lg:col-span-4 space-y-2 bg-paper border border-line rounded-md p-3">
+          <span className="text-xs text-ink/50 font-medium">Convidados da plateia</span>
+          {convidados.map((c, idx) => (
+            <div key={idx} className="border border-line rounded-md p-2 space-y-2 bg-surface">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-ink/40">Convidado {idx + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => removerConvidadoDraft(idx)}
+                  className="text-[10px] text-rose hover:underline"
+                >
+                  remover
+                </button>
+              </div>
+              <input
+                placeholder="Nome do convidado"
+                value={c.nome}
+                onChange={(e) => atualizarConvidado(idx, "nome", e.target.value)}
+                className="input text-sm"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  placeholder="Telefone"
+                  value={c.telefone}
+                  onChange={(e) => atualizarConvidado(idx, "telefone", e.target.value)}
+                  className="input text-sm"
+                />
+                <input
+                  type="email"
+                  placeholder="E-mail"
+                  value={c.email}
+                  onChange={(e) => atualizarConvidado(idx, "email", e.target.value)}
+                  className="input text-sm"
+                />
+                <input
+                  placeholder="CPF"
+                  value={c.cpf}
+                  onChange={(e) => atualizarConvidado(idx, "cpf", e.target.value)}
+                  className="input text-sm"
+                />
+                <input
+                  placeholder="Empresa"
+                  value={c.empresa}
+                  onChange={(e) => atualizarConvidado(idx, "empresa", e.target.value)}
+                  className="input text-sm"
+                />
+              </div>
+              <input
+                placeholder="Faturamento (R$)"
+                value={c.faturamento}
+                onChange={(e) => atualizarConvidado(idx, "faturamento", e.target.value)}
+                className="input text-sm"
+              />
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={adicionarConvidadoDraft}
+            className="text-xs text-accent hover:underline"
+          >
+            + Outro convidado
+          </button>
+        </div>
+      )}
+
       <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-4">
         <button
           disabled={saving || !partnerId}
