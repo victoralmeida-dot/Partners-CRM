@@ -747,6 +747,7 @@ function IndicacaoCard({
   onNotasSaved: () => void;
 }) {
   const [modalAberto, setModalAberto] = useState(false);
+  const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
   const [editandoObs, setEditandoObs] = useState(false);
   const [obs, setObs] = useState(i.observacoes ?? "");
   const [editandoConsultor, setEditandoConsultor] = useState(false);
@@ -805,12 +806,6 @@ function IndicacaoCard({
   };
 
   const excluirIndicacao = async () => {
-    if (
-      !confirm(
-        `Excluir a indicação "${i.leadNome}"? Isso remove também as notas e a comissão vinculada, se houver.`
-      )
-    )
-      return;
     await fetch(`/api/indicacoes/${i.id}`, { method: "DELETE" });
     setModalAberto(false);
     onSaved();
@@ -997,11 +992,10 @@ function IndicacaoCard({
               </div>
               <div className="flex items-center gap-3">
                 <button
-                  onClick={excluirIndicacao}
-                  title="Excluir indicação"
-                  className="text-rose hover:text-rose/70 text-sm"
+                  onClick={() => setConfirmandoExclusao(true)}
+                  className="text-xs text-rose hover:underline"
                 >
-                  🗑️
+                  excluir
                 </button>
                 <button
                   onClick={() => setModalAberto(false)}
@@ -1011,6 +1005,28 @@ function IndicacaoCard({
                 </button>
               </div>
             </div>
+
+            {confirmandoExclusao && (
+              <div className="bg-rose/10 border border-rose/30 rounded-md p-3 flex items-center justify-between gap-2">
+                <p className="text-xs text-ink/70">
+                  Excluir esta indicação? Isso remove também as notas e a comissão vinculada, se houver.
+                </p>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={excluirIndicacao}
+                    className="text-xs bg-rose text-white px-2.5 py-1 rounded-md"
+                  >
+                    Excluir
+                  </button>
+                  <button
+                    onClick={() => setConfirmandoExclusao(false)}
+                    className="text-xs text-ink/50 hover:underline"
+                  >
+                    cancelar
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="border-t border-line pt-3">
               <div className="flex items-center justify-between">
