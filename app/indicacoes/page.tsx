@@ -804,6 +804,18 @@ function IndicacaoCard({
     onNotasSaved();
   };
 
+  const excluirIndicacao = async () => {
+    if (
+      !confirm(
+        `Excluir a indicação "${i.leadNome}"? Isso remove também as notas e a comissão vinculada, se houver.`
+      )
+    )
+      return;
+    await fetch(`/api/indicacoes/${i.id}`, { method: "DELETE" });
+    setModalAberto(false);
+    onSaved();
+  };
+
   const atrasada = !!i.revisitarEm && i.revisitarEm.slice(0, 10) < hoje();
 
   const salvarRevisitarEm = async (valor: string) => {
@@ -983,12 +995,21 @@ function IndicacaoCard({
                 <h3 className="font-medium text-ink">{i.leadNome}</h3>
                 <p className="text-xs text-ink/50">{i.partner.nome}</p>
               </div>
-              <button
-                onClick={() => setModalAberto(false)}
-                className="text-ink/40 hover:text-ink text-sm"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={excluirIndicacao}
+                  title="Excluir indicação"
+                  className="text-rose hover:text-rose/70 text-sm"
+                >
+                  🗑️
+                </button>
+                <button
+                  onClick={() => setModalAberto(false)}
+                  className="text-ink/40 hover:text-ink text-sm"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             <div className="border-t border-line pt-3">
