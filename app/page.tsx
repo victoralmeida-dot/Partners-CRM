@@ -8,6 +8,7 @@ import BarChart from "@/components/BarChart";
 import MetasParceiroMesTable from "@/components/MetasParceiroMesTable";
 
 type DashboardData = {
+  periodoSelecionado: string;
   totalPartners: number;
   partnersPrioritarios: number;
   indicacoesMes: number;
@@ -61,14 +62,30 @@ const hojeISO = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+const mesAtualISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
+
+// Formata "YYYY-MM" como "Setembro/2026" — monta a data em UTC meio-dia só
+// pra evitar que o fuso local jogue o mês pra trás ao formatar.
+const mesLabel = (periodo: string) =>
+  new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(
+    new Date(`${periodo}-01T12:00:00Z`)
+  );
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [metasData, setMetasData] = useState<DashboardMetas | null>(null);
+  const [periodo, setPeriodo] = useState(mesAtualISO);
 
   useEffect(() => {
-    fetch("/api/dashboard")
+    fetch(`/api/dashboard?mes=${periodo}`)
       .then((r) => r.json())
       .then(setData);
+  }, [periodo]);
+
+  useEffect(() => {
     fetch(`/api/dashboard-metas?ano=${new Date().getFullYear()}`)
       .then((r) => r.json())
       .then(setMetasData);
@@ -80,11 +97,29 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-ink">Dashboard de resultados</h1>
-        <p className="text-ink/50 text-sm mt-1">
-          Visão geral de indicações, comissões e ações de parcerias.
-        </p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-ink">Dashboard de resultados</h1>
+          <p className="text-ink/50 text-sm mt-1">
+            Visão geral de indicações, comissões e ações de parcerias.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="month"
+            value={periodo}
+            onChange={(e) => setPeriodo(e.target.value)}
+            className="input text-sm w-auto"
+          />
+          {periodo !== mesAtualISO() && (
+            <button
+              onClick={() => setPeriodo(mesAtualISO())}
+              className="text-xs text-accent hover:underline"
+            >
+              mês atual
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -93,7 +128,11 @@ export default function DashboardPage() {
           value={`${data.partnersPrioritarios} / ${data.totalPartners}`}
           hint="Acompanhamento próximo"
         />
-        <StatCard label="Indicações no mês" value={String(data.indicacoesMes)} tone="accent" />
+        <StatCard
+          label={`Indicações em ${mesLabel(data.periodoSelecionado)}`}
+          value={String(data.indicacoesMes)}
+          tone="accent"
+        />
         <StatCard
           label="Taxa de conversão"
           value={`${(data.taxaConversao * 100).toFixed(0)}%`}
@@ -137,7 +176,9 @@ export default function DashboardPage() {
       })()}
 
       <div className="bg-surface border border-line rounded-lg p-5">
-        <h2 className="font-medium text-ink mb-3">Metas de indicação por parceiro (mês atual)</h2>
+        <h2 className="font-medium text-ink mb-3">
+          Metas de indicação por parceiro ({mesLabel(data.periodoSelecionado)})
+        </h2>
         <MetasParceiroMesTable metas={data.metasParceiroMes} />
       </div>
 
@@ -195,13 +236,15 @@ export default function DashboardPage() {
 
       <div className="bg-surface border border-line rounded-lg p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-medium text-ink">Indicações recentes do mês</h2>
+          <h2 className="font-medium text-ink">
+            Indicações em {mesLabel(data.periodoSelecionado)}
+          </h2>
           <Link href="/indicacoes" className="text-xs text-accent hover:underline">
             ver todas
           </Link>
         </div>
         {data.indicacoesRecentesMes.length === 0 ? (
-          <p className="text-sm text-ink/40">Nenhuma indicação registrada esse mês ainda.</p>
+          <p className="text-sm text-ink/40">Nenhuma indicação registrada nesse período.</p>
         ) : (
           <ul className="divide-y divide-line">
             {data.indicacoesRecentesMes.map((i) => (

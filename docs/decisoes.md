@@ -6,6 +6,20 @@ Não é um changelog de features — é só o "porquê" por trás de escolhas qu
 
 ---
 
+## 2026-10-01 — Dashboard ganha filtro de período (`/api/dashboard?mes=YYYY-MM`)
+
+**Contexto:** `/api/dashboard` sempre calculava tudo em cima do mês corrente (`new Date()`), sem jeito de olhar meses anteriores — "Indicações no mês", a lista de recentes e a tabela de metas por parceiro só mostravam o mês atual, sem filtro nenhum.
+
+**Decisão:** `GET /api/dashboard` aceita `?mes=YYYY-MM` (default: mês atual, mesmo comportamento de sempre se omitido). O filtro no front é um `<input type="month">` perto do título, com um link "mês atual" que só aparece quando o período selecionado é diferente do mês corrente.
+
+**Detalhe não óbvio — projeção em mês passado:** `calcularProjecaoMensal` (`lib/metaParceiro.ts`) extrapola "realizado até agora" pros dias que faltam no mês, o que só faz sentido pro mês corrente. Pra um mês já encerrado, passar `new Date()` como "hoje" pra essa função inflaria a projeção (ou faria pior que o real, dependendo de quando no mês passado a indicação caiu). A correção foi passar o **último dia do mês selecionado** como "hoje" quando o período não é o atual — isso faz `diaAtual === diasNoMes` dentro da fórmula, zerando a extrapolação (projeção = realizado, sem inventar números pro resto de um mês que já passou).
+
+**O que ficou de fora do escopo do filtro:** "Taxa de conversão" (é sobre o total histórico, não teria sentido mudar por mês), "Comissão pendente/paga" (idem, são saldos acumulados) e o widget de meta trimestral (usa `/api/dashboard-metas`, uma fonte de dado separada, já tem seu próprio seletor de ano em `/metas`) continuam mostrando o todo, não o período selecionado — só o que já era rotulado como "do mês" passou a respeitar o filtro.
+
+**Onde:** `app/api/dashboard/route.ts`, `app/page.tsx`.
+
+---
+
 ## 2026-09-29 — "Convidados na plateia" no "+ Adicionar parceiro" já abre o bloco de convidado
 
 **Contexto:** o admin só conseguia cadastrar convidados de plateia depois de criar a participação, indo na ficha do parceiro (`ConvidadosEvento` em `app/partners/[slug]/page.tsx`). Ao marcar "Convidados na plateia" direto no "+ Adicionar parceiro" (`app/eventos/page.tsx`), nada acontecia — só o boolean era salvo.
